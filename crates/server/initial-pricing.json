@@ -1,0 +1,34 @@
+[
+  {
+    "model_pattern": "gpt-5.2",
+    "input_per_1m": 1.75,
+    "cached_input_per_1m": 0.175,
+    "output_per_1m": 14.0,
+    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_to": null
+  },
+  {
+    "model_pattern": "gpt-5.2-codex",
+    "input_per_1m": 1.75,
+    "cached_input_per_1m": 0.175,
+    "output_per_1m": 14.0,
+    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_to": null
+  },
+  {
+    "model_pattern": "gpt-5.1-codex-max",
+    "input_per_1m": 1.25,
+    "cached_input_per_1m": 0.125,
+    "output_per_1m": 10.0,
+    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_to": null
+  },
+  {
+    "model_pattern": "gpt-5.1-codex-mini",
+    "input_per_1m": 0.25,
+    "cached_input_per_1m": 0.025,
+    "output_per_1m": 2.0,
+    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_to": null
+  }
+]

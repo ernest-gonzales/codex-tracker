@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS codex_home (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL,
+  path TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  last_seen_at TEXT
+);
