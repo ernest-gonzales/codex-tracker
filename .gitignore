@@ -1,0 +1,10 @@
+/target
+**/target
+.DS_Store
+apps/web/node_modules
+apps/web/dist
+apps/web/.vite
+apps/web/.env*
+apps/web/npm-debug.log*
+apps/web/.eslintcache
+bundle

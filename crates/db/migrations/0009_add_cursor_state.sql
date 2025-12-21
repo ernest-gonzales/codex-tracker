@@ -1,0 +1,2 @@
+-- Add stored model/effort state for incremental ingestion resumes.
+-- Applied via ensure_ingest_cursor_state_columns to remain idempotent.
