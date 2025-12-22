@@ -70,4 +70,24 @@ TODO:
 
 - proper release and binary signing
 - auto fetch pricing on startup from https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json
-- wrap app in tauri to create a proper desktop app, see if you could fix frontend layout when not on full window
+- CLI interface (nicely formatted) with brew install
+- Desktop app (Tauri)
+  - Goal: keep `apps/web` as the UI, but ship it as a native desktop app (no external browser).
+  - Storage (fix current “DB next to executable” approach for installed apps)
+    - Store SQLite + pricing defaults under the platform app data dir (not inside the app bundle).
+    - First-run migration: if a legacy DB exists (next to the old binary / bundle) and the new location is empty, move/copy it (keep a backup and show the resolved paths in the UI).
+    - Keep “power user” overrides (env vars and/or settings) for DB/pricing paths and Codex home, but default to safe, platform-correct locations.
+  - Lifecycle
+    - Single-instance behavior (second launch focuses existing window).
+    - Initialization sequence: create dirs → migrate DB → run migrations → sync/apply pricing defaults → (optional) initial ingest → show UI.
+    - Background work: manual “Sync now” + optional periodic ingest while the app is running; make shutdown cancel tasks cleanly.
+    - Fix layout when window is not full-size (responsive breakpoints + scroll containment).
+  - Backend integration (choose one)
+    - Preferred: no local HTTP server in desktop mode; expose a small set of native commands and call `tracker_db`/`ingest` directly (keep `tracker_server` for “web mode”).
+    - Alternative: spawn the existing Axum server as a child process bound to `127.0.0.1` on a random free port; have the desktop window wait for readiness and then load it (remove `open_browser()`).
+  - Packaging / security
+    - Strict allowlist of native entry points and input validation (paths, time ranges, model patterns).
+    - Lock down navigation and CSP to only bundled assets; open external links in the system browser.
+    - Never bind to non-loopback interfaces; if HTTP is used, randomize the port and consider CSRF/origin checks.
+    - Replace the current “copy binary + dist” bundling (`./scripts/build-bundle.sh`) with platform installers via Tauri; optionally keep the script as a dev convenience.
+    - Release hygiene: codesign/notarize on macOS, sign on Windows, publish checksums, document reproducible build steps.
