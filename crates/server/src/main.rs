@@ -154,14 +154,30 @@ async fn main() {
     }
     let app = build_app(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3030")
+    let port = resolve_port();
+    let bind_addr = format!("127.0.0.1:{}", port);
+    let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await
         .expect("bind server");
-    let url = "http://127.0.0.1:3030";
+    let url = format!("http://{}", bind_addr);
     if let Err(err) = open_browser(url) {
         eprintln!("failed to open browser: {}", err);
     }
     axum::serve(listener, app).await.expect("serve");
+}
+
+fn resolve_port() -> u16 {
+    let default_port = 3030;
+    match std::env::var("CODEX_TRACKER_PORT") {
+        Ok(value) => match value.parse::<u16>() {
+            Ok(port) => port,
+            Err(_) => {
+                eprintln!("invalid CODEX_TRACKER_PORT={}, using {}", value, default_port);
+                default_port
+            }
+        },
+        Err(_) => default_port,
+    }
 }
 
 fn open_browser(url: &str) -> std::io::Result<()> {

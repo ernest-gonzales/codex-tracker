@@ -49,6 +49,7 @@ cargo run -p tracker_server
 ```
 
 It binds to `http://127.0.0.1:3030` and will try to open your browser automatically.
+Set `CODEX_TRACKER_PORT` to override the port if 3030 is in use.
 
 ## Desktop app (Tauri)
 
