@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { SelectField, SelectOption } from "./components/Select";
 import { CodexTrackerLogo } from "./Logo";
 import {
   clearHomeData,
@@ -182,6 +183,15 @@ function formatRelativeReset(value: string | null | undefined) {
   return diffMs >= 0 ? `in ${label}` : `${label} ago`;
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return dateTimeFormat.format(parsed);
+}
+
 function rangeLabel(value: RangeValue) {
   return RANGE_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
@@ -201,6 +211,88 @@ function formatSessionLabel(sessionId: string) {
 function formatEffort(value: string | null | undefined) {
   if (!value) return "unknown";
   return value;
+}
+
+type PricingIssue = {
+  index: number;
+  message: string;
+  field?: "model_pattern" | "input_per_1m" | "cached_input_per_1m" | "output_per_1m" | "range";
+};
+
+function validatePricingRules(rules: PricingRule[]): PricingIssue[] {
+  const issues: PricingIssue[] = [];
+  const rangesByModel = new Map<
+    string,
+    Array<{ index: number; start: number; end: number | null }>
+  >();
+
+  rules.forEach((rule, index) => {
+    if (!rule.model_pattern.trim()) {
+      issues.push({ index, message: "Model pattern is required.", field: "model_pattern" });
+    }
+    if (rule.input_per_1m < 0) {
+      issues.push({ index, message: "Input price must be zero or higher.", field: "input_per_1m" });
+    }
+    if (rule.cached_input_per_1m < 0) {
+      issues.push({
+        index,
+        message: "Cached input price must be zero or higher.",
+        field: "cached_input_per_1m"
+      });
+    }
+    if (rule.output_per_1m < 0) {
+      issues.push({
+        index,
+        message: "Output price must be zero or higher.",
+        field: "output_per_1m"
+      });
+    }
+    const start = new Date(rule.effective_from).getTime();
+    const end = rule.effective_to ? new Date(rule.effective_to).getTime() : null;
+    if (!Number.isNaN(start) && end !== null && !Number.isNaN(end) && end < start) {
+      issues.push({
+        index,
+        message: "Effective end must be after the start date.",
+        field: "range"
+      });
+    }
+    const list = rangesByModel.get(rule.model_pattern) ?? [];
+    list.push({ index, start, end });
+    rangesByModel.set(rule.model_pattern, list);
+  });
+
+  rangesByModel.forEach((ranges) => {
+    ranges.sort((a, b) => (a.start || 0) - (b.start || 0));
+    for (let i = 0; i < ranges.length; i += 1) {
+      const current = ranges[i];
+      if (Number.isNaN(current.start)) {
+        continue;
+      }
+      for (let j = i + 1; j < ranges.length; j += 1) {
+        const next = ranges[j];
+        if (Number.isNaN(next.start)) {
+          continue;
+        }
+        const currentEnd = current.end ?? Number.POSITIVE_INFINITY;
+        const nextEnd = next.end ?? Number.POSITIVE_INFINITY;
+        const overlaps = current.start <= nextEnd && next.start <= currentEnd;
+        if (overlaps) {
+          issues.push({
+            index: current.index,
+            message: "Overlapping effective ranges for this model pattern.",
+            field: "range"
+          });
+          issues.push({
+            index: next.index,
+            message: "Overlapping effective ranges for this model pattern.",
+            field: "range"
+          });
+        }
+      }
+    }
+  });
+
+  return issues;
 }
 
 function formatDateTimeLocal(value?: string | null) {
@@ -279,6 +371,10 @@ export default function App() {
   const [deleteConfirm, setDeleteConfirm] = useState<string>("");
   const [pricingStatus, setPricingStatus] = useState<string>("");
   const [settingsStatus, setSettingsStatus] = useState<string>("");
+  const [pricingDirty, setPricingDirty] = useState<boolean>(false);
+  const [pricingFilter, setPricingFilter] = useState<string>("");
+  const [pricingBusy, setPricingBusy] = useState<boolean>(false);
+  const [pricingLastRecompute, setPricingLastRecompute] = useState<string | null>(null);
   const [storageInfo, setStorageInfo] = useState<{
     dbPath?: string;
     pricingDefaultsPath?: string;
@@ -298,6 +394,9 @@ export default function App() {
   const ingestInFlight = useRef<boolean>(false);
   const [costBreakdownTab, setCostBreakdownTab] = useState<"model" | "day">("model");
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{ message: string; tone?: "error" | "info" } | null>(
+    null
+  );
 
   const rangeParams = useMemo(
     () => buildRangeParams(range, customStart, customEnd),
@@ -319,10 +418,46 @@ export default function App() {
     1,
     Math.ceil(costSeries.length / COST_BREAKDOWN_PAGE_SIZE)
   );
-  const deleteReady = deleteConfirm.trim().toLowerCase() === "delete";
   const pagedCostSeries = costSeries.slice(
     (costSeriesPage - 1) * COST_BREAKDOWN_PAGE_SIZE,
     costSeriesPage * COST_BREAKDOWN_PAGE_SIZE
+  );
+  const deleteReady = deleteConfirm.trim().toLowerCase() === "delete";
+  const pricingIssues = useMemo(() => validatePricingRules(pricingRules), [pricingRules]);
+  const pricingIssueMap = useMemo(() => {
+    const map = new Map<number, PricingIssue[]>();
+    pricingIssues.forEach((issue) => {
+      const list = map.get(issue.index) ?? [];
+      list.push(issue);
+      map.set(issue.index, list);
+    });
+    return map;
+  }, [pricingIssues]);
+  const pricingHasIssues = pricingIssues.length > 0;
+  const pricingRows = useMemo(() => {
+    const rows = pricingRules.map((rule, index) => ({ rule, index }));
+    if (!pricingFilter.trim()) {
+      return rows;
+    }
+    const needle = pricingFilter.trim().toLowerCase();
+    return rows.filter(({ rule }) => rule.model_pattern.toLowerCase().includes(needle));
+  }, [pricingRules, pricingFilter]);
+
+  const rangeOptions = useMemo<SelectOption[]>(
+    () =>
+      RANGE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label
+      })),
+    []
+  );
+  const autoRefreshOptions = useMemo<SelectOption[]>(
+    () =>
+      AUTO_REFRESH_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label
+      })),
+    []
   );
 
   useEffect(() => {
@@ -412,6 +547,7 @@ export default function App() {
         };
       });
       setPricingRules(normalized);
+      setPricingDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load pricing");
     }
@@ -458,6 +594,21 @@ export default function App() {
     refreshSettings();
   }, []);
 
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+    setToast({ message: error, tone: "error" });
+  }, [error]);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setToast(null), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
   const autoRefreshInterval = useMemo(() => {
     return AUTO_REFRESH_OPTIONS.find((option) => option.value === autoRefresh)?.ms ?? 0;
   }, [autoRefresh]);
@@ -476,6 +627,21 @@ export default function App() {
     const models = new Set(breakdown.map((item) => item.model));
     return ["all", ...Array.from(models).sort()];
   }, [breakdown]);
+  const modelSelectOptions = useMemo<SelectOption[]>(
+    () =>
+      modelOptions.map((model) => ({
+        value: model,
+        label: model === "all" ? "All models" : model
+      })),
+    [modelOptions]
+  );
+  const bucketOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "day", label: "Day" },
+      { value: "hour", label: "Hour" }
+    ],
+    []
+  );
 
   const activeHome = useMemo(() => {
     if (activeHomeId === null) {
@@ -483,8 +649,23 @@ export default function App() {
     }
     return homes.find((home) => home.id === activeHomeId) ?? null;
   }, [homes, activeHomeId]);
+  const homeSelectOptions = useMemo<SelectOption[]>(() => {
+    if (homes.length === 0) {
+      return [{ value: "none", label: "No homes found", disabled: true }];
+    }
+    return homes.map((home) => ({
+      value: String(home.id),
+      label: home.label || home.path
+    }));
+  }, [homes]);
+
+  const isTauriRuntime =
+    typeof window !== "undefined" &&
+    (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
+      Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__));
 
   const isRefreshing = loading || isIngesting;
+  const showSummarySkeleton = loading && !summary;
 
   const costChartData = breakdown.map((item) => ({
     model: item.model,
@@ -492,6 +673,9 @@ export default function App() {
     cached: item.cached_input_cost_usd ?? 0,
     output: item.output_cost_usd ?? 0
   }));
+  const tokensSeriesEmpty = tokensSeries.length === 0;
+  const costSeriesEmpty = costSeries.length === 0;
+  const costChartEmpty = costChartData.length === 0;
 
   const effortByModel = useMemo(() => {
     const grouped = new Map<string, ModelEffortCostBreakdown[]>();
@@ -582,10 +766,47 @@ export default function App() {
     }
   }
 
+  async function validateHomePath(path: string) {
+    if (!isTauriRuntime) {
+      return true;
+    }
+    try {
+      const { exists } = await import("@tauri-apps/plugin-fs");
+      return await exists(path);
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Path validation unavailable",
+        tone: "info"
+      });
+      return true;
+    }
+  }
+
+  async function handlePickHomePath() {
+    if (!isTauriRuntime) {
+      setHomeStatus("Path picker available in the desktop app only");
+      return;
+    }
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ directory: true, multiple: false });
+      if (typeof selected === "string") {
+        setNewHomePath(selected);
+      }
+    } catch (err) {
+      setHomeStatus(err instanceof Error ? err.message : "Picker failed");
+    }
+  }
+
   async function handleAddHome() {
     const path = newHomePath.trim();
     if (!path) {
       setHomeStatus("Path required");
+      return;
+    }
+    const exists = await validateHomePath(path);
+    if (!exists) {
+      setHomeStatus("Path does not exist");
       return;
     }
     setHomeStatus("Adding...");
@@ -621,24 +842,36 @@ export default function App() {
   }
 
   async function handleSavePricing() {
+    if (pricingHasIssues) {
+      setPricingStatus("Fix validation issues before saving");
+      return;
+    }
     setPricingStatus("Saving...");
+    setPricingBusy(true);
     try {
       await replacePricing(pricingRules);
       setPricingStatus("Saved");
+      setPricingDirty(false);
       await refreshAll();
     } catch (err) {
       setPricingStatus(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setPricingBusy(false);
     }
   }
 
   async function handleRecomputeCosts() {
     setPricingStatus("Recomputing...");
+    setPricingBusy(true);
     try {
-      await recomputePricing();
-      setPricingStatus("Recomputed");
+      const result = await recomputePricing();
+      setPricingStatus(`Recomputed ${formatNumber(result.updated)} rows`);
+      setPricingLastRecompute(new Date().toISOString());
       await refreshAll();
     } catch (err) {
       setPricingStatus(err instanceof Error ? err.message : "Recompute failed");
+    } finally {
+      setPricingBusy(false);
     }
   }
 
@@ -706,10 +939,45 @@ export default function App() {
     }
   }
 
+  async function handleCopyPath(value?: string) {
+    if (!value) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(value);
+      setToast({ message: "Path copied to clipboard", tone: "info" });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Copy failed",
+        tone: "error"
+      });
+    }
+  }
+
+  async function handleRevealPath(value?: string) {
+    if (!value) {
+      return;
+    }
+    if (!isTauriRuntime) {
+      setToast({ message: "Reveal is available in the desktop app", tone: "info" });
+      return;
+    }
+    try {
+      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+      await revealItemInDir(value);
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Reveal failed",
+        tone: "error"
+      });
+    }
+  }
+
   function updatePricingRule(index: number, patch: Partial<PricingRule>) {
     setPricingRules((prev) =>
       prev.map((rule, idx) => (idx === index ? { ...rule, ...patch } : rule))
     );
+    setPricingDirty(true);
   }
 
   function addPricingRule() {
@@ -724,6 +992,26 @@ export default function App() {
         effective_to: null
       }
     ]);
+    setPricingDirty(true);
+  }
+
+  function duplicatePricingRule(index: number) {
+    setPricingRules((prev) => {
+      const rule = prev[index];
+      if (!rule) {
+        return prev;
+      }
+      const clone = { ...rule, id: undefined };
+      const next = [...prev];
+      next.splice(index + 1, 0, clone);
+      return next;
+    });
+    setPricingDirty(true);
+  }
+
+  function deletePricingRule(index: number) {
+    setPricingRules((prev) => prev.filter((_, idx) => idx !== index));
+    setPricingDirty(true);
   }
 
   function exportJson() {
@@ -767,8 +1055,7 @@ export default function App() {
     downloadFile("codex-tracker-events.csv", csv, "text/csv");
   }
 
-  function handleExportMenu(event: React.ChangeEvent<HTMLSelectElement>) {
-    const value = event.target.value;
+  function handleExportMenu(value: string) {
     if (!value) {
       return;
     }
@@ -783,6 +1070,23 @@ export default function App() {
   return (
     <div className="app">
       <div className="glow" aria-hidden="true" />
+      {toast && (
+        <div
+          className={`toast ${toast.tone === "error" ? "toast-error" : "toast-info"}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span>{toast.message}</span>
+          <button
+            className="icon-button toast-close"
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
+          >
+            ×
+          </button>
+        </div>
+      )}
       {isSettingsOpen ? (
         <section className="settings-page">
           <header className="settings-header">
@@ -800,316 +1104,495 @@ export default function App() {
               Back to Dashboard
             </button>
           </header>
-          <section className="grid settings-grid settings-grid-full">
-            <div className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Codex Homes</h2>
-                  <p>Switch between tracked log directories.</p>
-                </div>
-                <button className="button ghost" onClick={refreshHomes}>
-                  Reload
-                </button>
-              </div>
-              <label className="label">Active Home</label>
-              <select
-                className="select-native"
-                value={activeHomeId ?? ""}
-                onChange={(event) => {
-                  if (!event.target.value) {
-                    return;
-                  }
-                  handleSetActiveHome(Number(event.target.value));
-                }}
-              >
-                {homes.length === 0 && (
-                  <option value="" disabled>
-                    No homes found
-                  </option>
-                )}
-                {homes.map((home) => (
-                  <option key={home.id} value={home.id}>
-                    {home.label || home.path}
-                  </option>
-                ))}
-              </select>
-              <div className="note">
-                {activeHome ? `Path: ${activeHome.path}` : "Select a home to see details."}
-              </div>
-              {homes.length > 0 && (
-                <div className="table-wrap">
-                  <table className="compact-table">
-                    <thead>
-                      <tr>
-                        <th>Label</th>
-                        <th>Path</th>
-                        <th>Last Seen</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {homes.map((home) => (
-                        <tr
-                          key={home.id}
-                          className={home.id === activeHomeId ? "active-row" : undefined}
-                        >
-                          <td>{home.label}</td>
-                          <td>
-                            <span className="mono">{home.path}</span>
-                          </td>
-                          <td>
-                            {home.last_seen_at
-                              ? new Date(home.last_seen_at).toLocaleString()
-                              : "-"}
-                          </td>
-                          <td>
-                            <button
-                              className="button ghost small"
-                              onClick={() => handleDeleteHome(home.id)}
-                              disabled={homes.length === 1}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="danger-zone">
-                <div className="danger-zone-header">
+          <div className="settings-layout">
+            <nav className="settings-nav" aria-label="Settings sections">
+              <a href="#settings-homes">Homes</a>
+              <a href="#settings-display">Display</a>
+              <a href="#settings-storage">Storage</a>
+              <a href="#settings-pricing">Pricing</a>
+            </nav>
+            <div className="settings-content">
+              <section id="settings-homes" className="panel settings-section">
+                <div className="panel-header">
                   <div>
-                    <h3>Danger Zone</h3>
-                    <p>Delete all ingested data for the active home.</p>
+                    <h2>Codex Homes</h2>
+                    <p>Switch between tracked log directories.</p>
+                  </div>
+                  <div className="panel-actions">
+                    <button className="button ghost small" onClick={refreshHomes}>
+                      Reload
+                    </button>
                   </div>
                 </div>
-                <label className="label">Type DELETE to confirm</label>
-                <input
-                  className="input"
-                  value={deleteConfirm}
-                  onChange={(event) => setDeleteConfirm(event.target.value)}
-                  placeholder="DELETE"
+                <label className="label">Active Home</label>
+                <SelectField
+                  value={activeHomeId ? String(activeHomeId) : undefined}
+                  onValueChange={(value) => handleSetActiveHome(Number(value))}
+                  options={homeSelectOptions}
+                  placeholder="Select a home"
+                  disabled={homes.length === 0}
                 />
-                <div className="row">
-                  <button
-                    className="button danger"
-                    onClick={handleDeleteData}
-                    disabled={!activeHomeId || !deleteReady}
-                  >
-                    Delete Ingested Data
-                  </button>
-                  <span className="status">{dangerStatus}</span>
+                <div className="note">
+                  {activeHome ? `Path: ${activeHome.path}` : "Select a home to see details."}
                 </div>
-              </div>
-              <label className="label">Add Home</label>
-              <input
-                className="input"
-                value={newHomePath}
-                onChange={(event) => setNewHomePath(event.target.value)}
-                placeholder="/Users/you/.codex"
-              />
-              <input
-                className="input"
-                value={newHomeLabel}
-                onChange={(event) => setNewHomeLabel(event.target.value)}
-                placeholder="Label (optional)"
-              />
-              <div className="row">
-                <button className="button" onClick={handleAddHome}>
-                  Add Home
-                </button>
-                <span className="status">{homeStatus}</span>
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Active Window</h2>
-                  <p>Control what counts as active sessions.</p>
-                </div>
-              </div>
-              <label className="label">Active Session Window (Minutes)</label>
-              <input
-                className="input"
-                type="number"
-                min="1"
-                value={activeMinutesInput}
-                onChange={(event) => setActiveMinutesInput(event.target.value)}
-              />
-              <div className="row">
-                <button className="button" onClick={handleSaveActiveMinutes}>
-                  Save Window
-                </button>
-                <span className="status">{settingsStatus}</span>
-              </div>
-              <div className="note">Updates the Active Sessions panel and refresh cycle.</div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Storage</h2>
-                  <p>Local app data paths for the desktop client.</p>
-                </div>
-              </div>
-              <div className="settings-kv">
-                <div className="settings-kv-row">
-                  <span className="settings-kv-key">App Data</span>
-                  <span className="settings-kv-value mono">
-                    {storageInfo?.appDataDir ?? "—"}
-                  </span>
-                </div>
-                <div className="settings-kv-row">
-                  <span className="settings-kv-key">Database</span>
-                  <span className="settings-kv-value mono">
-                    {storageInfo?.dbPath ?? "—"}
-                  </span>
-                </div>
-                <div className="settings-kv-row">
-                  <span className="settings-kv-key">Pricing</span>
-                  <span className="settings-kv-value mono">
-                    {storageInfo?.pricingDefaultsPath ?? "—"}
-                  </span>
-                </div>
-                {storageInfo?.legacyBackupDir && (
-                  <div className="settings-kv-row">
-                    <span className="settings-kv-key">Legacy Backup</span>
-                    <span className="settings-kv-value mono">
-                      {storageInfo.legacyBackupDir}
+                {homes.length > 0 && (
+                  <div className="table-wrap">
+                    <table className="compact-table">
+                      <thead>
+                        <tr>
+                          <th>Label</th>
+                          <th>Path</th>
+                          <th>Last Seen</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {homes.map((home) => (
+                          <tr
+                            key={home.id}
+                            className={home.id === activeHomeId ? "active-row" : undefined}
+                          >
+                            <td>{home.label || "—"}</td>
+                            <td>
+                              <span className="mono">{home.path}</span>
+                            </td>
+                            <td>
+                              {home.last_seen_at
+                                ? new Date(home.last_seen_at).toLocaleString()
+                                : "-"}
+                            </td>
+                            <td>
+                              {home.id === activeHomeId ? (
+                                <span className="badge">Active</span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="table-actions">
+                              {home.id !== activeHomeId && (
+                                <button
+                                  className="button ghost small"
+                                  onClick={() => handleSetActiveHome(home.id)}
+                                >
+                                  Make Active
+                                </button>
+                              )}
+                              <button
+                                className="button ghost small"
+                                onClick={() => handleDeleteHome(home.id)}
+                                disabled={homes.length === 1}
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="danger-zone">
+                  <div className="danger-zone-header">
+                    <div>
+                      <h3>Danger Zone</h3>
+                      <p>Delete all ingested data for the active home.</p>
+                    </div>
+                  </div>
+                  <label className="label">Type DELETE to confirm</label>
+                  <input
+                    className="input"
+                    value={deleteConfirm}
+                    onChange={(event) => setDeleteConfirm(event.target.value)}
+                    placeholder="DELETE"
+                  />
+                  <div className="row">
+                    <button
+                      className="button danger"
+                      onClick={handleDeleteData}
+                      disabled={!activeHomeId || !deleteReady}
+                    >
+                      Delete Ingested Data
+                    </button>
+                    <span className="status" role="status" aria-live="polite">
+                      {dangerStatus}
                     </span>
                   </div>
-                )}
-              </div>
-              <div className="note">
-                Desktop builds keep data in the OS app data directory.
-              </div>
-            </div>
-          </section>
+                </div>
+                <label className="label">Add Home</label>
+                <div className="input-row">
+                  <input
+                    className="input"
+                    value={newHomePath}
+                    onChange={(event) => setNewHomePath(event.target.value)}
+                    placeholder="/Users/you/.codex"
+                  />
+                  <button className="button ghost small" type="button" onClick={handlePickHomePath}>
+                    Browse
+                  </button>
+                </div>
+                <input
+                  className="input"
+                  value={newHomeLabel}
+                  onChange={(event) => setNewHomeLabel(event.target.value)}
+                  placeholder="Label (optional)"
+                />
+                <div className="row">
+                  <button className="button" onClick={handleAddHome} disabled={!newHomePath.trim()}>
+                    Add Home
+                  </button>
+                  <span className="status" role="status" aria-live="polite">
+                    {homeStatus}
+                  </span>
+                </div>
+              </section>
 
-          <section className="panel settings-pricing">
-            <div className="panel-header">
-              <div>
-                <h2>Pricing Rules</h2>
-                <p>Override model pricing and recompute stored costs.</p>
-              </div>
-              <div className="row">
-                <button className="button ghost" onClick={addPricingRule}>
-                  Add Rule
-                </button>
-                <button className="button" onClick={handleSavePricing}>
-                  Save Pricing
-                </button>
-                <button className="button ghost" onClick={handleRecomputeCosts}>
-                  Recompute Costs
-                </button>
-                <span className="status">{pricingStatus}</span>
-              </div>
+              <section id="settings-display" className="panel settings-section">
+                <div className="panel-header">
+                  <div>
+                    <h2>Active Window</h2>
+                    <p>Control what counts as active sessions.</p>
+                  </div>
+                </div>
+                <label className="label">Active Session Window (Minutes)</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  value={activeMinutesInput}
+                  onChange={(event) => setActiveMinutesInput(event.target.value)}
+                />
+                <div className="row">
+                  <button className="button" onClick={handleSaveActiveMinutes}>
+                    Save Window
+                  </button>
+                  <span className="status" role="status" aria-live="polite">
+                    {settingsStatus}
+                  </span>
+                </div>
+                <div className="note">Updates the Active Sessions panel and refresh cycle.</div>
+              </section>
+
+              <section id="settings-storage" className="panel settings-section">
+                <div className="panel-header">
+                  <div>
+                    <h2>Storage</h2>
+                    <p>Local app data paths for the desktop client.</p>
+                  </div>
+                </div>
+                <div className="settings-kv">
+                  <div className="settings-kv-row">
+                    <span className="settings-kv-key">App Data</span>
+                    <div className="settings-kv-value">
+                      <span className="mono">{storageInfo?.appDataDir ?? "—"}</span>
+                      <div className="kv-actions">
+                        <button
+                          className="button ghost small"
+                          type="button"
+                          onClick={() => handleCopyPath(storageInfo?.appDataDir)}
+                          disabled={!storageInfo?.appDataDir}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          className="button ghost small"
+                          type="button"
+                          onClick={() => handleRevealPath(storageInfo?.appDataDir)}
+                          disabled={!storageInfo?.appDataDir || !isTauriRuntime}
+                        >
+                          Reveal
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="settings-kv-row">
+                    <span className="settings-kv-key">Database</span>
+                    <div className="settings-kv-value">
+                      <span className="mono">{storageInfo?.dbPath ?? "—"}</span>
+                      <div className="kv-actions">
+                        <button
+                          className="button ghost small"
+                          type="button"
+                          onClick={() => handleCopyPath(storageInfo?.dbPath)}
+                          disabled={!storageInfo?.dbPath}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          className="button ghost small"
+                          type="button"
+                          onClick={() => handleRevealPath(storageInfo?.dbPath)}
+                          disabled={!storageInfo?.dbPath || !isTauriRuntime}
+                        >
+                          Reveal
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="settings-kv-row">
+                    <span className="settings-kv-key">Pricing</span>
+                    <div className="settings-kv-value">
+                      <span className="mono">{storageInfo?.pricingDefaultsPath ?? "—"}</span>
+                      <div className="kv-actions">
+                        <button
+                          className="button ghost small"
+                          type="button"
+                          onClick={() => handleCopyPath(storageInfo?.pricingDefaultsPath)}
+                          disabled={!storageInfo?.pricingDefaultsPath}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          className="button ghost small"
+                          type="button"
+                          onClick={() => handleRevealPath(storageInfo?.pricingDefaultsPath)}
+                          disabled={!storageInfo?.pricingDefaultsPath || !isTauriRuntime}
+                        >
+                          Reveal
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {storageInfo?.legacyBackupDir && (
+                    <div className="settings-kv-row">
+                      <span className="settings-kv-key">Legacy Backup</span>
+                      <div className="settings-kv-value">
+                        <span className="mono">{storageInfo.legacyBackupDir}</span>
+                        <div className="kv-actions">
+                          <button
+                            className="button ghost small"
+                            type="button"
+                            onClick={() => handleCopyPath(storageInfo?.legacyBackupDir ?? "")}
+                            disabled={!storageInfo?.legacyBackupDir}
+                          >
+                            Copy
+                          </button>
+                          <button
+                            className="button ghost small"
+                            type="button"
+                            onClick={() => handleRevealPath(storageInfo?.legacyBackupDir ?? "")}
+                            disabled={!storageInfo?.legacyBackupDir || !isTauriRuntime}
+                          >
+                            Reveal
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="note">
+                  Desktop builds keep data in the OS app data directory.
+                </div>
+              </section>
+
+              <section id="settings-pricing" className="panel settings-pricing settings-section">
+                <div className="panel-header">
+                  <div>
+                    <h2>Pricing Rules</h2>
+                    <p>Override model pricing and recompute stored costs.</p>
+                  </div>
+                </div>
+                <div className="pricing-toolbar">
+                  <div className="pricing-filter">
+                    <label className="label">Filter</label>
+                    <input
+                      className="input select-inline"
+                      value={pricingFilter}
+                      onChange={(event) => setPricingFilter(event.target.value)}
+                      placeholder="Filter by model pattern"
+                    />
+                  </div>
+                  <div className="pricing-actions">
+                    <button className="button ghost" onClick={addPricingRule} disabled={pricingBusy}>
+                      Add Rule
+                    </button>
+                    <button
+                      className="button"
+                      onClick={handleSavePricing}
+                      disabled={pricingBusy || pricingHasIssues || !pricingDirty}
+                    >
+                      Save Pricing
+                    </button>
+                    <button
+                      className="button ghost"
+                      onClick={handleRecomputeCosts}
+                      disabled={pricingBusy}
+                    >
+                      Recompute Costs
+                    </button>
+                  </div>
+                  <div className="pricing-meta">
+                    <span className={`status ${pricingDirty ? "status-warn" : ""}`}>
+                      {pricingDirty ? "Unsaved changes" : "All changes saved"}
+                    </span>
+                    {pricingStatus && (
+                      <span className="status" role="status" aria-live="polite">
+                        {pricingStatus}
+                      </span>
+                    )}
+                    {pricingLastRecompute && (
+                      <span className="note">
+                        Last recompute {formatDateTime(pricingLastRecompute)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {pricingHasIssues && (
+                  <div className="note error-note">
+                    Resolve validation issues before saving pricing rules.
+                  </div>
+                )}
+                {pricingRows.length === 0 ? (
+                  <div className="note">No pricing rules match this filter.</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Model Pattern</th>
+                          <th>Input / 1M</th>
+                          <th>Cached / 1M</th>
+                          <th>Output / 1M</th>
+                          <th>Effective From</th>
+                          <th>Effective To</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pricingRows.map(({ rule, index }) => {
+                          const effectiveToValue = formatDateTimeLocal(rule.effective_to);
+                          const rowIssues = pricingIssueMap.get(index) ?? [];
+                          const hasModelError = rowIssues.some(
+                            (issue) => issue.field === "model_pattern"
+                          );
+                          const hasInputError = rowIssues.some(
+                            (issue) => issue.field === "input_per_1m"
+                          );
+                          const hasCachedError = rowIssues.some(
+                            (issue) => issue.field === "cached_input_per_1m"
+                          );
+                          const hasOutputError = rowIssues.some(
+                            (issue) => issue.field === "output_per_1m"
+                          );
+                          const hasRangeError = rowIssues.some(
+                            (issue) => issue.field === "range"
+                          );
+                          return (
+                            <tr key={rule.id ?? `${rule.model_pattern}-${index}`}>
+                              <td>
+                                <input
+                                  className={`input ${hasModelError ? "input-error" : ""}`}
+                                  value={rule.model_pattern}
+                                  onChange={(event) =>
+                                    updatePricingRule(index, { model_pattern: event.target.value })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  className={`input ${hasInputError ? "input-error" : ""}`}
+                                  type="number"
+                                  step="0.0001"
+                                  value={rule.input_per_1m}
+                                  onChange={(event) =>
+                                    updatePricingRule(index, {
+                                      input_per_1m: Number(event.target.value)
+                                    })
+                                  }
+                                />
+                                <div className="input-hint">
+                                  {formatCurrency(rule.input_per_1m)}
+                                </div>
+                              </td>
+                              <td>
+                                <input
+                                  className={`input ${hasCachedError ? "input-error" : ""}`}
+                                  type="number"
+                                  step="0.0001"
+                                  value={rule.cached_input_per_1m}
+                                  onChange={(event) =>
+                                    updatePricingRule(index, {
+                                      cached_input_per_1m: Number(event.target.value)
+                                    })
+                                  }
+                                />
+                                <div className="input-hint">
+                                  {formatCurrency(rule.cached_input_per_1m)}
+                                </div>
+                              </td>
+                              <td>
+                                <input
+                                  className={`input ${hasOutputError ? "input-error" : ""}`}
+                                  type="number"
+                                  step="0.0001"
+                                  value={rule.output_per_1m}
+                                  onChange={(event) =>
+                                    updatePricingRule(index, {
+                                      output_per_1m: Number(event.target.value)
+                                    })
+                                  }
+                                />
+                                <div className="input-hint">
+                                  {formatCurrency(rule.output_per_1m)}
+                                </div>
+                              </td>
+                              <td>
+                                <input
+                                  className={`input ${hasRangeError ? "input-error" : ""}`}
+                                  type="datetime-local"
+                                  value={formatDateTimeLocal(rule.effective_from)}
+                                  onChange={(event) =>
+                                    updatePricingRule(index, {
+                                      effective_from: parseDateTimeLocal(event.target.value)
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  className={`input ${hasRangeError ? "input-error" : ""}`}
+                                  type="datetime-local"
+                                  value={effectiveToValue}
+                                  onChange={(event) =>
+                                    updatePricingRule(index, {
+                                      effective_to: event.target.value
+                                        ? parseDateTimeLocal(event.target.value)
+                                        : null
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td>
+                                <div className="table-actions">
+                                  <button
+                                    className="button ghost small"
+                                    onClick={() => duplicatePricingRule(index)}
+                                  >
+                                    Duplicate
+                                  </button>
+                                  <button
+                                    className="button ghost small"
+                                    onClick={() => deletePricingRule(index)}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                                {rowIssues[0] && (
+                                  <div className="input-hint error-note">
+                                    {rowIssues[0].message}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Model Pattern</th>
-                    <th>Input / 1M</th>
-                    <th>Cached / 1M</th>
-                    <th>Output / 1M</th>
-                    <th>Effective From</th>
-                    <th>Effective To</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pricingRules.map((rule, index) => {
-                    const effectiveToValue = formatDateTimeLocal(rule.effective_to);
-                    return (
-                      <tr key={rule.id ?? `${rule.model_pattern}-${index}`}>
-                        <td>
-                          <input
-                            className="input"
-                            value={rule.model_pattern}
-                            onChange={(event) =>
-                              updatePricingRule(index, { model_pattern: event.target.value })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="input"
-                            type="number"
-                            step="0.0001"
-                            value={rule.input_per_1m}
-                            onChange={(event) =>
-                              updatePricingRule(index, {
-                                input_per_1m: Number(event.target.value)
-                              })
-                            }
-                          />
-                          <div className="input-hint">{formatCurrency(rule.input_per_1m)}</div>
-                        </td>
-                        <td>
-                          <input
-                            className="input"
-                            type="number"
-                            step="0.0001"
-                            value={rule.cached_input_per_1m}
-                            onChange={(event) =>
-                              updatePricingRule(index, {
-                                cached_input_per_1m: Number(event.target.value)
-                              })
-                            }
-                          />
-                          <div className="input-hint">
-                            {formatCurrency(rule.cached_input_per_1m)}
-                          </div>
-                        </td>
-                        <td>
-                          <input
-                            className="input"
-                            type="number"
-                            step="0.0001"
-                            value={rule.output_per_1m}
-                            onChange={(event) =>
-                              updatePricingRule(index, {
-                                output_per_1m: Number(event.target.value)
-                              })
-                            }
-                          />
-                          <div className="input-hint">{formatCurrency(rule.output_per_1m)}</div>
-                        </td>
-                        <td>
-                          <input
-                            className="input"
-                            type="datetime-local"
-                            value={formatDateTimeLocal(rule.effective_from)}
-                            onChange={(event) =>
-                              updatePricingRule(index, {
-                                effective_from: parseDateTimeLocal(event.target.value)
-                              })
-                            }
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="input"
-                            type="datetime-local"
-                            value={effectiveToValue}
-                            onChange={(event) =>
-                              updatePricingRule(index, {
-                                effective_to: event.target.value
-                                  ? parseDateTimeLocal(event.target.value)
-                                  : null
-                              })
-                            }
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          </div>
         </section>
       ) : (
         <>
@@ -1155,17 +1638,13 @@ export default function App() {
                   </svg>
                 </button>
               </div>
-              <select
-                className="select-native select-compact"
+              <SelectField
                 value={range}
-                onChange={(event) => setRange(event.target.value as RangeValue)}
-              >
-                {RANGE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => setRange(value as RangeValue)}
+                options={rangeOptions}
+                size="compact"
+                ariaLabel="Range"
+              />
               {range === "custom" && (
                 <div className="custom-range custom-range-compact">
                   <input
@@ -1197,31 +1676,30 @@ export default function App() {
               </div>
               <div className="row">
                 <label className="label">Export</label>
-                <select
-                  className="select-native select-compact"
-                  value={exportMenuValue}
-                  onChange={handleExportMenu}
-                >
-                  <option value="" disabled>
-                    Choose format
-                  </option>
-                  <option value="json">Export JSON</option>
-                  <option value="csv">Export CSV</option>
-                </select>
+                <SelectField
+                  value={exportMenuValue || undefined}
+                  onValueChange={(value) => {
+                    setExportMenuValue(value);
+                    handleExportMenu(value);
+                  }}
+                  options={[
+                    { value: "json", label: "Export JSON" },
+                    { value: "csv", label: "Export CSV" }
+                  ]}
+                  placeholder="Choose format"
+                  size="compact"
+                  ariaLabel="Export format"
+                />
               </div>
               <div className="row">
                 <label className="label">Auto refresh</label>
-                <select
-                  className="select-native select-compact"
+                <SelectField
                   value={autoRefresh}
-                  onChange={(event) => setAutoRefresh(event.target.value as AutoRefreshValue)}
-                >
-                  {AUTO_REFRESH_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setAutoRefresh(value as AutoRefreshValue)}
+                  options={autoRefreshOptions}
+                  size="compact"
+                  ariaLabel="Auto refresh"
+                />
               </div>
               {error && <p className="error">{error}</p>}
             </div>
@@ -1230,24 +1708,70 @@ export default function App() {
       <section className="grid summary-grid">
         <div className="card">
           <p className="card-label">Total Tokens</p>
-          <p className="card-value">{formatNumber(summary?.total_tokens)}</p>
-          <p className="card-meta">Input {formatNumber(summary?.input_tokens)}</p>
+          <p className="card-value">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-lg" />
+            ) : (
+              formatNumber(summary?.total_tokens)
+            )}
+          </p>
+          <p className="card-meta">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-sm" />
+            ) : (
+              `Input ${formatNumber(summary?.input_tokens)}`
+            )}
+          </p>
         </div>
         <div className="card">
           <p className="card-label">Total Cost</p>
-          <p className="card-value">{formatCurrency(summary?.total_cost_usd)}</p>
-          <p className="card-meta">Output {formatCurrency(summary?.output_cost_usd)}</p>
+          <p className="card-value">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-lg" />
+            ) : (
+              formatCurrency(summary?.total_cost_usd)
+            )}
+          </p>
+          <p className="card-meta">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-sm" />
+            ) : (
+              `Output ${formatCurrency(summary?.output_cost_usd)}`
+            )}
+          </p>
         </div>
         <div className="card">
           <p className="card-label">Cached Input</p>
-          <p className="card-value">{formatNumber(summary?.cached_input_tokens)}</p>
-          <p className="card-meta">Cost {formatCurrency(summary?.cached_input_cost_usd)}</p>
+          <p className="card-value">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-lg" />
+            ) : (
+              formatNumber(summary?.cached_input_tokens)
+            )}
+          </p>
+          <p className="card-meta">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-sm" />
+            ) : (
+              `Cost ${formatCurrency(summary?.cached_input_cost_usd)}`
+            )}
+          </p>
         </div>
         <div className="card">
           <p className="card-label">Output Tokens</p>
-          <p className="card-value">{formatNumber(summary?.output_tokens)}</p>
+          <p className="card-value">
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-lg" />
+            ) : (
+              formatNumber(summary?.output_tokens)
+            )}
+          </p>
           <p className="card-meta">
-            Reasoning {formatNumber(summary?.reasoning_output_tokens)}
+            {showSummarySkeleton ? (
+              <span className="skeleton-line skeleton-line-sm" />
+            ) : (
+              `Reasoning ${formatNumber(summary?.reasoning_output_tokens)}`
+            )}
           </p>
         </div>
       </section>
@@ -1420,14 +1944,13 @@ export default function App() {
           </div>
           <div className="panel-actions">
             <label className="label">Bucket</label>
-            <select
-              className="select-native select-inline"
+            <SelectField
               value={chartBucketMode}
-              onChange={(event) => setChartBucketMode(event.target.value as ChartBucketMode)}
-            >
-              <option value="day">Day</option>
-              <option value="hour">Hour</option>
-            </select>
+              onValueChange={(value) => setChartBucketMode(value as ChartBucketMode)}
+              options={bucketOptions}
+              size="inline"
+              ariaLabel="Bucket"
+            />
           </div>
         </div>
         <div className="chart-grid">
@@ -1439,31 +1962,40 @@ export default function App() {
               </div>
             </div>
             <div className="chart">
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={tokensSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis
-                  dataKey="bucket_start"
-                  tick={{ fill: "#cbd6ff", fontSize: 11 }}
-                  tickFormatter={(value) => formatBucketLabel(value as string, chartBucket)}
-                />
-                <YAxis tick={{ fill: "#cbd6ff", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ background: "#10142b", border: "1px solid #2f3c6d" }}
-                  labelFormatter={(value) =>
-                    formatBucketLabel(value as string, chartBucket)
-                  }
-                  formatter={(value) => [formatNumber(value as number), "Tokens"]}
-                />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#7df9ff"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {tokensSeriesEmpty ? (
+                <div className="chart-empty">
+                  {loading ? "Loading token history..." : "No token activity in this range."}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={tokensSeries}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis
+                      dataKey="bucket_start"
+                      tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
+                      tickFormatter={(value) => formatBucketLabel(value as string, chartBucket)}
+                    />
+                    <YAxis tick={{ fill: "var(--chart-axis)", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--chart-tooltip-bg)",
+                        border: "1px solid var(--border)"
+                      }}
+                      labelFormatter={(value) =>
+                        formatBucketLabel(value as string, chartBucket)
+                      }
+                      formatter={(value) => [formatNumber(value as number), "Tokens"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="var(--chart-token)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
           <div className="chart-card">
@@ -1474,31 +2006,40 @@ export default function App() {
               </div>
             </div>
             <div className="chart">
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={costSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis
-                  dataKey="bucket_start"
-                  tick={{ fill: "#cbd6ff", fontSize: 11 }}
-                  tickFormatter={(value) => formatBucketLabel(value as string, chartBucket)}
-                />
-                <YAxis tick={{ fill: "#cbd6ff", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ background: "#10142b", border: "1px solid #2f3c6d" }}
-                  labelFormatter={(value) =>
-                    formatBucketLabel(value as string, chartBucket)
-                  }
-                  formatter={(value) => [formatCurrency(value as number), "Cost"]}
-                />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#ffb347"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {costSeriesEmpty ? (
+                <div className="chart-empty">
+                  {loading ? "Loading cost history..." : "No cost activity in this range."}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={costSeries}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis
+                      dataKey="bucket_start"
+                      tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
+                      tickFormatter={(value) => formatBucketLabel(value as string, chartBucket)}
+                    />
+                    <YAxis tick={{ fill: "var(--chart-axis)", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--chart-tooltip-bg)",
+                        border: "1px solid var(--border)"
+                      }}
+                      labelFormatter={(value) =>
+                        formatBucketLabel(value as string, chartBucket)
+                      }
+                      formatter={(value) => [formatCurrency(value as number), "Cost"]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="var(--chart-cost)"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
@@ -1533,25 +2074,34 @@ export default function App() {
         {costBreakdownTab === "model" ? (
           <>
             <div className="chart">
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart
-                  data={costChartData}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="model" tick={{ fill: "#cbd6ff", fontSize: 11 }} />
-                  <YAxis tick={{ fill: "#cbd6ff", fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: "#10142b", border: "1px solid #2f3c6d" }}
-                    labelFormatter={formatBucketLabel}
-                    formatter={(value) => formatCurrency(value as number)}
-                  />
-                  <Legend />
-                  <Bar dataKey="input" stackId="cost" fill="#7df9ff" />
-                  <Bar dataKey="cached" stackId="cost" fill="#8f7dff" />
-                  <Bar dataKey="output" stackId="cost" fill="#ffb347" />
-                </BarChart>
-              </ResponsiveContainer>
+              {costChartEmpty ? (
+                <div className="chart-empty">
+                  {loading ? "Loading breakdown..." : "No cost data in this range."}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart
+                    data={costChartData}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="model" tick={{ fill: "var(--chart-axis)", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "var(--chart-axis)", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--chart-tooltip-bg)",
+                        border: "1px solid var(--border)"
+                      }}
+                      labelFormatter={formatBucketLabel}
+                      formatter={(value) => formatCurrency(value as number)}
+                    />
+                    <Legend wrapperStyle={{ color: "var(--text)" }} />
+                    <Bar dataKey="input" stackId="cost" fill="var(--chart-token)" />
+                    <Bar dataKey="cached" stackId="cost" fill="var(--chart-cached)" />
+                    <Bar dataKey="output" stackId="cost" fill="var(--chart-cost)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="table-wrap">
               <table>
@@ -1569,7 +2119,14 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedCostBreakdown.flatMap((item) => {
+                  {pagedCostBreakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="empty-cell">
+                        {loading ? "Loading cost breakdown..." : "No cost data for this range."}
+                      </td>
+                    </tr>
+                  ) : (
+                    pagedCostBreakdown.flatMap((item) => {
                     const effortRows = effortByModel.get(item.model) ?? [];
                     const isExpanded = expandedModels.has(item.model);
                     const isExpandable = effortRows.length > 0;
@@ -1668,7 +2225,7 @@ export default function App() {
                       );
                     });
                     return rows;
-                  })}
+                  }))}
                 </tbody>
               </table>
             </div>
@@ -1712,25 +2269,37 @@ export default function App() {
         ) : (
           <>
             <div className="chart">
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={costSeries} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis
-                    dataKey="bucket_start"
-                    tick={{ fill: "#cbd6ff", fontSize: 11 }}
-                    tickFormatter={(value) => formatBucketLabel(value as string, chartBucket)}
-                  />
-                  <YAxis tick={{ fill: "#cbd6ff", fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: "#10142b", border: "1px solid #2f3c6d" }}
-                    labelFormatter={(value) =>
-                      formatBucketLabel(value as string, chartBucket)
-                    }
-                    formatter={(value) => formatCurrency(value as number)}
-                  />
-                  <Bar dataKey="value" fill="#ffb347" />
-                </BarChart>
-              </ResponsiveContainer>
+              {costSeriesEmpty ? (
+                <div className="chart-empty">
+                  {loading ? "Loading breakdown..." : "No cost data in this range."}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart
+                    data={costSeries}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis
+                      dataKey="bucket_start"
+                      tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
+                      tickFormatter={(value) => formatBucketLabel(value as string, chartBucket)}
+                    />
+                    <YAxis tick={{ fill: "var(--chart-axis)", fontSize: 11 }} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--chart-tooltip-bg)",
+                        border: "1px solid var(--border)"
+                      }}
+                      labelFormatter={(value) =>
+                        formatBucketLabel(value as string, chartBucket)
+                      }
+                      formatter={(value) => formatCurrency(value as number)}
+                    />
+                    <Bar dataKey="value" fill="var(--chart-cost)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
             <div className="table-wrap">
               <table>
@@ -1741,12 +2310,20 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedCostSeries.map((point) => (
-                    <tr key={point.bucket_start}>
-                      <td>{formatBucketLabel(point.bucket_start, chartBucket)}</td>
-                      <td>{formatCurrency(point.value)}</td>
+                  {pagedCostSeries.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="empty-cell">
+                        {loading ? "Loading cost history..." : "No cost data for this range."}
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    pagedCostSeries.map((point) => (
+                      <tr key={point.bucket_start}>
+                        <td>{formatBucketLabel(point.bucket_start, chartBucket)}</td>
+                        <td>{formatCurrency(point.value)}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1798,17 +2375,12 @@ export default function App() {
           </div>
           <div className="filters">
             <label className="label">Model</label>
-            <select
-              className="select-native"
+            <SelectField
               value={modelFilter}
-              onChange={(event) => setModelFilter(event.target.value)}
-            >
-              {modelOptions.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
+              onValueChange={setModelFilter}
+              options={modelSelectOptions}
+              ariaLabel="Model filter"
+            />
           </div>
         </div>
         <div className="table-wrap events-table">
@@ -1825,17 +2397,25 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {pagedEvents.map((event) => (
-                <tr key={event.id}>
-                  <td>{new Date(event.ts).toLocaleString()}</td>
-                  <td>{event.model}</td>
-                  <td>{formatEffort(event.reasoning_effort)}</td>
-                  <td>{formatNumber(event.usage.total_tokens)}</td>
-                  <td>{formatNumber(event.usage.input_tokens)}</td>
-                  <td>{formatNumber(event.usage.output_tokens)}</td>
-                  <td>{formatCurrency(event.cost_usd)}</td>
+              {pagedEvents.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="empty-cell">
+                    {loading ? "Loading events..." : "No events in this range."}
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                pagedEvents.map((event) => (
+                  <tr key={event.id}>
+                    <td>{new Date(event.ts).toLocaleString()}</td>
+                    <td>{event.model}</td>
+                    <td>{formatEffort(event.reasoning_effort)}</td>
+                    <td>{formatNumber(event.usage.total_tokens)}</td>
+                    <td>{formatNumber(event.usage.input_tokens)}</td>
+                    <td>{formatNumber(event.usage.output_tokens)}</td>
+                    <td>{formatCurrency(event.cost_usd)}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
