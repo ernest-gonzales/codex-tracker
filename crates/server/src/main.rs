@@ -4,12 +4,11 @@ use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
-use chrono::{DateTime, Datelike, Duration, Local, SecondsFormat, TimeZone, Utc};
+use chrono::{Duration, SecondsFormat, Utc};
 use ingest::{IngestStats, ingest_codex_home};
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::{BufReader, BufWriter};
 use std::process::Command;
+use tracker_app::RangeParams;
 use tower_http::services::{ServeDir, ServeFile};
 use tracker_core::{
     ActiveSession, CodexHome, ContextPressureStats, ModelBreakdown, ModelCostBreakdown,
@@ -23,18 +22,9 @@ struct ApiError {
     error: String,
 }
 
-#[derive(Clone)]
-struct AppState {
-    db_path: PathBuf,
-    pricing_defaults_path: PathBuf,
-}
+type AppState = tracker_app::AppState;
 
-#[derive(Deserialize)]
-struct RangeQuery {
-    range: Option<String>,
-    start: Option<String>,
-    end: Option<String>,
-}
+type RangeQuery = RangeParams;
 
 #[derive(Deserialize)]
 struct ActiveSessionsQuery {
@@ -147,24 +137,21 @@ async fn main() {
     let app_dir = resolve_app_dir().or_else(|| std::env::current_dir().ok());
     let db_path = resolve_db_path_with(app_dir.clone());
     let pricing_defaults_path = resolve_pricing_defaults_path(app_dir);
-    let is_fresh_db = !db_path.exists();
-    if let Err(err) = setup_db(&db_path) {
+    let state = AppState::new(db_path, pricing_defaults_path);
+    let is_fresh_db = state.is_fresh_db();
+    if let Err(err) = state.setup_db() {
         eprintln!("failed to initialize database: {}", err);
         std::process::exit(1);
     }
-    if is_fresh_db && let Err(err) = apply_pricing_defaults(&db_path, &pricing_defaults_path) {
+    if is_fresh_db && let Err(err) = state.apply_pricing_defaults() {
         eprintln!("failed to apply pricing defaults: {}", err);
     }
-    if let Err(err) = sync_pricing_defaults(&db_path, &pricing_defaults_path) {
+    if let Err(err) = state.sync_pricing_defaults() {
         eprintln!("failed to sync pricing defaults: {}", err);
     }
-    if let Err(err) = refresh_data(&db_path) {
+    if let Err(err) = state.refresh_data() {
         eprintln!("failed to refresh data on startup: {}", err);
     }
-    let state = AppState {
-        db_path,
-        pricing_defaults_path,
-    };
     let app = build_app(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3030")
@@ -497,7 +484,7 @@ async fn pricing_replace(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ApiError>)> {
     let mut db = open_db(&state)?;
     let count = db.replace_pricing_rules(&payload).map_err(to_api_error)?;
-    if let Err(err) = write_pricing_defaults(&state.pricing_defaults_path, &payload) {
+    if let Err(err) = state.write_pricing_defaults(&payload) {
         eprintln!("failed to update pricing defaults: {}", err);
     }
     Ok(Json(serde_json::json!({ "updated": count })))
@@ -518,10 +505,18 @@ async fn settings_get(
     let mut db = open_db(&state)?;
     let home = require_active_home(&mut db)?;
     let context_active_minutes = db.get_context_active_minutes().map_err(to_api_error)?;
+    let app_data_dir = state
+        .db_path
+        .parent()
+        .map(|path| path.to_string_lossy().to_string());
     Ok(Json(serde_json::json!({
         "codex_home": home.path,
         "active_home_id": home.id,
-        "context_active_minutes": context_active_minutes
+        "context_active_minutes": context_active_minutes,
+        "db_path": state.db_path.to_string_lossy(),
+        "pricing_defaults_path": state.pricing_defaults_path.to_string_lossy(),
+        "app_data_dir": app_data_dir,
+        "legacy_backup_dir": null
     })))
 }
 
@@ -620,7 +615,7 @@ async fn homes_clear_data(
 }
 
 fn open_db(state: &AppState) -> Result<Db, (StatusCode, Json<ApiError>)> {
-    Db::open(&state.db_path).map_err(to_api_error)
+    state.open_db().map_err(to_api_error)
 }
 
 fn require_active_home(db: &mut Db) -> Result<CodexHome, (StatusCode, Json<ApiError>)> {
@@ -646,150 +641,8 @@ fn resolve_pricing_defaults_path(app_dir: Option<PathBuf>) -> PathBuf {
     base.join("codex-tracker-pricing.json")
 }
 
-fn apply_pricing_defaults(db_path: &Path, defaults_path: &Path) -> Result<(), String> {
-    let rules = if defaults_path.exists() {
-        load_pricing_defaults(defaults_path)?
-    } else {
-        load_initial_pricing()?
-    };
-    let mut db = Db::open(db_path).map_err(|err| format!("open db: {}", err))?;
-    db.replace_pricing_rules(&rules)
-        .map_err(|err| format!("replace pricing: {}", err))?;
-    Ok(())
-}
-
-fn sync_pricing_defaults(db_path: &Path, defaults_path: &Path) -> Result<(), String> {
-    let db = Db::open(db_path).map_err(|err| format!("open db: {}", err))?;
-    let rules = db
-        .list_pricing_rules()
-        .map_err(|err| format!("list pricing: {}", err))?;
-    if rules.is_empty() && !defaults_path.exists() {
-        return Ok(());
-    }
-    let inputs = rules
-        .into_iter()
-        .map(|rule| PricingRuleInput {
-            model_pattern: rule.model_pattern,
-            input_per_1m: rule.input_per_1m,
-            cached_input_per_1m: rule.cached_input_per_1m,
-            output_per_1m: rule.output_per_1m,
-            effective_from: rule.effective_from,
-            effective_to: rule.effective_to,
-        })
-        .collect::<Vec<_>>();
-    write_pricing_defaults(defaults_path, &inputs)
-}
-
-fn load_pricing_defaults(path: &Path) -> Result<Vec<PricingRuleInput>, String> {
-    let file = fs::File::open(path).map_err(|err| format!("open defaults: {}", err))?;
-    let reader = BufReader::new(file);
-    serde_json::from_reader(reader).map_err(|err| format!("parse defaults: {}", err))
-}
-
-fn load_initial_pricing() -> Result<Vec<PricingRuleInput>, String> {
-    let data = include_str!("../initial-pricing.json");
-    serde_json::from_str(data).map_err(|err| format!("parse initial pricing: {}", err))
-}
-
-fn write_pricing_defaults(path: &Path, rules: &[PricingRuleInput]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|err| format!("create defaults dir: {}", err))?;
-    }
-    let file = fs::File::create(path).map_err(|err| format!("create defaults: {}", err))?;
-    let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, rules).map_err(|err| format!("write defaults: {}", err))
-}
-
-fn setup_db(path: &Path) -> Result<(), tracker_db::DbError> {
-    let mut db = Db::open(path)?;
-    db.migrate()?;
-    Ok(())
-}
-
-fn refresh_data(path: &Path) -> Result<(), String> {
-    let mut db = Db::open(path).map_err(|err| format!("open db: {}", err))?;
-    let home = db
-        .ensure_active_home()
-        .map_err(|err| format!("ensure active home: {}", err))?;
-    ingest_codex_home(&mut db, Path::new(&home.path))
-        .map_err(|err| format!("ingest: {}", err))?;
-    db.update_event_costs(home.id)
-        .map_err(|err| format!("update costs: {}", err))?;
-    Ok(())
-}
-
 fn resolve_range(query: RangeQuery) -> Result<TimeRange, (StatusCode, Json<ApiError>)> {
-    if let (Some(start), Some(end)) = (query.start.clone(), query.end.clone()) {
-        let start = normalize_rfc3339_to_utc(&start)?;
-        let end = normalize_rfc3339_to_utc(&end)?;
-        return Ok(TimeRange { start, end });
-    }
-    if let Some(start) = query.start {
-        let start = normalize_rfc3339_to_utc(&start)?;
-        let end = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-        return Ok(TimeRange { start, end });
-    }
-    let now_local = Local::now();
-    let (start_local, end_local) = match query.range.as_deref().unwrap_or("last7days") {
-        "today" => {
-            let start = Local
-                .with_ymd_and_hms(
-                    now_local.year(),
-                    now_local.month(),
-                    now_local.day(),
-                    0,
-                    0,
-                    0,
-                )
-                .single()
-                .ok_or_else(|| to_bad_request("invalid local date"))?;
-            (start, now_local)
-        }
-        "last7days" => {
-            let start = now_local - Duration::days(7);
-            (start, now_local)
-        }
-        "last14days" => {
-            let start = now_local - Duration::days(14);
-            (start, now_local)
-        }
-        "thismonth" => {
-            let start = Local
-                .with_ymd_and_hms(now_local.year(), now_local.month(), 1, 0, 0, 0)
-                .single()
-                .ok_or_else(|| to_bad_request("invalid local date"))?;
-            (start, now_local)
-        }
-        "alltime" => {
-            let start = Local
-                .with_ymd_and_hms(1970, 1, 1, 0, 0, 0)
-                .single()
-                .ok_or_else(|| to_bad_request("invalid local date"))?;
-            (start, now_local)
-        }
-        value => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ApiError {
-                    error: format!("unsupported range {}", value),
-                }),
-            ));
-        }
-    };
-    let start = start_local
-        .with_timezone(&Utc)
-        .to_rfc3339_opts(SecondsFormat::Millis, true);
-    let end = end_local
-        .with_timezone(&Utc)
-        .to_rfc3339_opts(SecondsFormat::Millis, true);
-    Ok(TimeRange { start, end })
-}
-
-fn normalize_rfc3339_to_utc(value: &str) -> Result<String, (StatusCode, Json<ApiError>)> {
-    let parsed = DateTime::parse_from_rfc3339(value).map_err(to_bad_request)?;
-    Ok(parsed
-        .with_timezone(&Utc)
-        .to_rfc3339_opts(SecondsFormat::Millis, true))
+    tracker_app::resolve_range(&query).map_err(to_bad_request)
 }
 
 fn to_bad_request(err: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {
@@ -932,8 +785,8 @@ mod tests {
         let db_path = dir.path().join("pricing.sqlite");
         let defaults_path = dir.path().join("pricing-defaults.json");
 
-        setup_db(&db_path).expect("setup db");
-        write_pricing_defaults(
+        tracker_app::setup_db(&db_path).expect("setup db");
+        tracker_app::write_pricing_defaults(
             &defaults_path,
             &[PricingRuleInput {
                 model_pattern: "gpt-5.2".to_string(),
@@ -946,7 +799,7 @@ mod tests {
         )
         .expect("write defaults");
 
-        apply_pricing_defaults(&db_path, &defaults_path).expect("apply defaults");
+        tracker_app::apply_pricing_defaults(&db_path, &defaults_path).expect("apply defaults");
 
         let db = Db::open(&db_path).expect("open db");
         let rules = db.list_pricing_rules().expect("list rules");
@@ -958,7 +811,7 @@ mod tests {
     fn refresh_data_ingests_on_startup() {
         let dir = tempfile::tempdir().expect("temp dir");
         let db_path = dir.path().join("codex-tracker.sqlite");
-        setup_db(&db_path).expect("setup db");
+        tracker_app::setup_db(&db_path).expect("setup db");
 
         let log_dir = dir.path().join("sessions/2025/01/01");
         fs::create_dir_all(&log_dir).expect("create log dir");
@@ -972,7 +825,7 @@ mod tests {
             .expect("home");
         db.set_active_home(home.id).expect("active");
 
-        refresh_data(&db_path).expect("refresh data");
+        tracker_app::refresh_data(&db_path).expect("refresh data");
 
         let home = db.get_active_home().expect("active home").expect("home");
         assert_eq!(db.count_usage_events(home.id).expect("count"), 1);
@@ -980,7 +833,7 @@ mod tests {
 
     #[test]
     fn load_initial_pricing_is_non_empty() {
-        let rules = load_initial_pricing().expect("load initial pricing");
+        let rules = tracker_app::load_initial_pricing().expect("load initial pricing");
         assert!(!rules.is_empty());
     }
 

@@ -1,0 +1,18 @@
+[package]
+name = "codex_tracker_desktop"
+version = "0.1.0"
+description = "Codex Tracker desktop app"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = "2.5.1"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+ingest = { path = "../../../crates/ingest" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = "2.5.1"
+tracker_app = { path = "../../../crates/app" }
+tracker_core = { path = "../../../crates/core" }
+tracker_db = { path = "../../../crates/db" }

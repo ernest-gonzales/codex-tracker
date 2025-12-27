@@ -13,6 +13,45 @@ import {
   YAxis
 } from "recharts";
 import { CodexTrackerLogo } from "./Logo";
+import {
+  clearHomeData,
+  createHome,
+  deleteHome,
+  getActiveSessions,
+  getBreakdownCosts,
+  getBreakdownEffortCosts,
+  getContextStats,
+  getEvents,
+  getLimitWindows,
+  getLimitsCurrent,
+  getLimitsLatest,
+  getSettings,
+  getSummary,
+  getTimeSeries,
+  listHomes,
+  listPricing,
+  recomputePricing,
+  replacePricing,
+  runIngest,
+  setActiveHome,
+  updateSettings
+} from "./api";
+import {
+  ActiveSession,
+  CodexHome,
+  ContextPressureStats,
+  IngestStats,
+  LimitsResponse,
+  ModelCostBreakdown,
+  ModelEffortCostBreakdown,
+  PricingRule,
+  PricingRuleApi,
+  TimeSeriesPoint,
+  UsageEvent,
+  UsageLimitCurrentResponse,
+  UsageLimitWindow,
+  UsageSummary
+} from "./types";
 
 const RANGE_OPTIONS = [
   { value: "today", label: "Today" },
@@ -36,166 +75,6 @@ const AUTO_REFRESH_OPTIONS = [
 type RangeValue = (typeof RANGE_OPTIONS)[number]["value"];
 type AutoRefreshValue = (typeof AUTO_REFRESH_OPTIONS)[number]["value"];
 type ChartBucketMode = "day" | "hour";
-
-type UsageSummary = {
-  total_tokens: number;
-  input_tokens: number;
-  cached_input_tokens: number;
-  output_tokens: number;
-  reasoning_output_tokens: number;
-  total_cost_usd: number | null;
-  input_cost_usd: number | null;
-  cached_input_cost_usd: number | null;
-  output_cost_usd: number | null;
-};
-
-type TimeSeriesPoint = {
-  bucket_start: string;
-  value: number;
-};
-
-type ModelCostBreakdown = {
-  model: string;
-  input_tokens: number;
-  cached_input_tokens: number;
-  output_tokens: number;
-  reasoning_output_tokens: number;
-  total_tokens: number;
-  input_cost_usd: number | null;
-  cached_input_cost_usd: number | null;
-  output_cost_usd: number | null;
-  total_cost_usd: number | null;
-};
-
-type ModelEffortCostBreakdown = {
-  model: string;
-  reasoning_effort: string | null;
-  input_tokens: number;
-  cached_input_tokens: number;
-  output_tokens: number;
-  reasoning_output_tokens: number;
-  total_tokens: number;
-  input_cost_usd: number | null;
-  cached_input_cost_usd: number | null;
-  output_cost_usd: number | null;
-  total_cost_usd: number | null;
-};
-
-type UsageEvent = {
-  id: string;
-  ts: string;
-  model: string;
-  usage: {
-    input_tokens: number;
-    cached_input_tokens: number;
-    output_tokens: number;
-    reasoning_output_tokens: number;
-    total_tokens: number;
-  };
-  context: {
-    context_used: number;
-    context_window: number;
-  };
-  cost_usd: number | null;
-  reasoning_effort: string | null;
-  source: string;
-  session_id: string;
-};
-
-type ActiveSession = {
-  session_id: string;
-  model: string;
-  last_seen: string;
-  session_start: string;
-  context_used: number;
-  context_window: number;
-};
-
-type ContextPressureStats = {
-  avg_context_used: number | null;
-  avg_context_window: number | null;
-  avg_pressure_pct: number | null;
-  sample_count: number;
-};
-
-type UsageLimitSnapshot = {
-  limit_type: string;
-  percent_left: number;
-  reset_at: string;
-  observed_at: string;
-  source: string;
-  raw_line?: string | null;
-};
-
-type UsageLimitWindow = {
-  window_start: string | null;
-  window_end: string;
-  total_tokens: number | null;
-  total_cost_usd: number | null;
-  message_count: number | null;
-  complete: boolean;
-};
-
-type UsageLimitCurrentWindow = {
-  window_start: string;
-  window_end: string;
-  total_tokens: number | null;
-  total_cost_usd: number | null;
-  message_count: number | null;
-};
-
-type UsageLimitCurrentResponse = {
-  primary: UsageLimitCurrentWindow | null;
-  secondary: UsageLimitCurrentWindow | null;
-};
-
-type LimitsResponse = {
-  primary: UsageLimitSnapshot | null;
-  secondary: UsageLimitSnapshot | null;
-};
-
-type PricingRule = {
-  id?: number | null;
-  model_pattern: string;
-  input_per_1m: number;
-  cached_input_per_1m: number;
-  output_per_1m: number;
-  effective_from: string;
-  effective_to?: string | null;
-};
-
-type PricingRuleApi = PricingRule & {
-  input_per_1k?: number;
-  cached_input_per_1k?: number;
-  output_per_1k?: number;
-};
-
-type CodexHome = {
-  id: number;
-  label: string;
-  path: string;
-  created_at: string;
-  last_seen_at?: string | null;
-};
-
-type IngestStats = {
-  files_scanned: number;
-  files_skipped: number;
-  events_inserted: number;
-  bytes_read: number;
-  issues: { file_path: string; message: string }[];
-};
-
-type HomesResponse = {
-  active_home_id: number | null;
-  homes: CodexHome[];
-};
-
-type SettingsResponse = {
-  codex_home: string;
-  active_home_id: number;
-  context_active_minutes?: number;
-};
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -343,18 +222,13 @@ function parseDateTimeLocal(value: string) {
 }
 
 function buildRangeParams(range: RangeValue, start?: string, end?: string) {
-  const params = new URLSearchParams();
   if (range === "custom") {
-    if (start) {
-      params.set("start", new Date(start).toISOString());
-    }
-    if (end) {
-      params.set("end", new Date(end).toISOString());
-    }
-  } else {
-    params.set("range", range);
+    return {
+      start: start ? new Date(start).toISOString() : undefined,
+      end: end ? new Date(end).toISOString() : undefined
+    };
   }
-  return params;
+  return { range };
 }
 
 function csvEscape(value: string) {
@@ -403,6 +277,12 @@ export default function App() {
   const [homeStatus, setHomeStatus] = useState<string>("");
   const [pricingStatus, setPricingStatus] = useState<string>("");
   const [settingsStatus, setSettingsStatus] = useState<string>("");
+  const [storageInfo, setStorageInfo] = useState<{
+    dbPath?: string;
+    pricingDefaultsPath?: string;
+    appDataDir?: string;
+    legacyBackupDir?: string | null;
+  } | null>(null);
   const [ingestStats, setIngestStats] = useState<IngestStats | null>(null);
   const [isIngesting, setIsIngesting] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -422,7 +302,7 @@ export default function App() {
     [range, customStart, customEnd]
   );
 
-  const rangeParamsString = rangeParams.toString();
+  const rangeParamsKey = useMemo(() => JSON.stringify(rangeParams), [rangeParams]);
   const chartBucket = chartBucketMode;
   const chartBucketLabel = chartBucket === "hour" ? "hour" : "day";
   const totalCostBreakdownPages = Math.max(
@@ -477,31 +357,11 @@ export default function App() {
     setCostSeriesPage((page) => Math.min(page, totalCostSeriesPages));
   }, [costSeries.length, costBreakdownTab, totalCostSeriesPages]);
 
-  async function fetchJson<T>(url: string): Promise<T> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
-    }
-    return response.json() as Promise<T>;
-  }
-
   async function refreshAll() {
     setLoading(true);
     setError("");
     try {
       const bucket = chartBucket;
-      const summaryUrl = `/api/summary?${rangeParamsString}`;
-      const tokensUrl = `/api/timeseries?${rangeParamsString}&bucket=${bucket}&metric=tokens`;
-      const costUrl = `/api/timeseries?${rangeParamsString}&bucket=${bucket}&metric=cost`;
-      const breakdownUrl = `/api/breakdown/costs?${rangeParamsString}`;
-      const effortBreakdownUrl = `/api/breakdown/effort/costs?${rangeParamsString}`;
-      const contextStatsUrl = `/api/context/stats?${rangeParamsString}`;
-      const limitsUrl = "/api/limits";
-      const limitsCurrentUrl = "/api/limits/current";
-      const limitWindowsUrl = "/api/limits/7d/windows?limit=8";
-      const modelQuery = modelFilter === "all" ? "" : `&model=${modelFilter}`;
-      const eventsUrl = `/api/events?${rangeParamsString}&limit=200${modelQuery}`;
-      const sessionsUrl = `/api/context/sessions?active_minutes=${activeMinutes}`;
       const [
         summaryData,
         tokensData,
@@ -515,17 +375,21 @@ export default function App() {
         eventsData,
         sessionsData
       ] = await Promise.all([
-        fetchJson<UsageSummary>(summaryUrl),
-        fetchJson<TimeSeriesPoint[]>(tokensUrl),
-        fetchJson<TimeSeriesPoint[]>(costUrl),
-        fetchJson<ModelCostBreakdown[]>(breakdownUrl),
-        fetchJson<ModelEffortCostBreakdown[]>(effortBreakdownUrl),
-        fetchJson<ContextPressureStats>(contextStatsUrl),
-        fetchJson<LimitsResponse>(limitsUrl),
-        fetchJson<UsageLimitCurrentResponse>(limitsCurrentUrl),
-        fetchJson<UsageLimitWindow[]>(limitWindowsUrl),
-        fetchJson<UsageEvent[]>(eventsUrl),
-        fetchJson<ActiveSession[]>(sessionsUrl)
+        getSummary(rangeParams),
+        getTimeSeries({ ...rangeParams, bucket, metric: "tokens" }),
+        getTimeSeries({ ...rangeParams, bucket, metric: "cost" }),
+        getBreakdownCosts(rangeParams),
+        getBreakdownEffortCosts(rangeParams),
+        getContextStats(rangeParams),
+        getLimitsLatest(),
+        getLimitsCurrent(),
+        getLimitWindows(8),
+        getEvents({
+          ...rangeParams,
+          limit: 200,
+          model: modelFilter === "all" ? undefined : modelFilter
+        }),
+        getActiveSessions({ active_minutes: activeMinutes })
       ]);
 
       setSummary(summaryData);
@@ -548,7 +412,7 @@ export default function App() {
 
   async function refreshPricing() {
     try {
-      const pricingData = await fetchJson<PricingRuleApi[]>("/api/pricing");
+      const pricingData = await listPricing();
       const normalized = (pricingData || []).map((rule) => {
         if (
           rule.input_per_1m ||
@@ -573,7 +437,7 @@ export default function App() {
 
   async function refreshHomes() {
     try {
-      const data = await fetchJson<HomesResponse>("/api/homes");
+      const data = await listHomes();
       setHomes(data.homes || []);
       setActiveHomeId(data.active_home_id ?? null);
     } catch (err) {
@@ -583,10 +447,16 @@ export default function App() {
 
   async function refreshSettings() {
     try {
-      const data = await fetchJson<SettingsResponse>("/api/settings");
+      const data = await getSettings();
       const minutes = data.context_active_minutes ?? 60;
       setActiveMinutes(minutes);
       setActiveMinutesInput(minutes.toString());
+      setStorageInfo({
+        dbPath: data.db_path,
+        pricingDefaultsPath: data.pricing_defaults_path,
+        appDataDir: data.app_data_dir,
+        legacyBackupDir: data.legacy_backup_dir ?? null
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     }
@@ -594,11 +464,11 @@ export default function App() {
 
   useEffect(() => {
     refreshAll();
-  }, [rangeParamsString, modelFilter, activeMinutes, chartBucket]);
+  }, [rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
 
   useEffect(() => {
     setEventsPage(1);
-  }, [rangeParamsString, modelFilter]);
+  }, [rangeParamsKey, modelFilter]);
 
   useEffect(() => {
     refreshPricing();
@@ -618,7 +488,7 @@ export default function App() {
       handleIngest();
     }, autoRefreshInterval);
     return () => window.clearInterval(intervalId);
-  }, [autoRefreshInterval, rangeParamsString, modelFilter, activeMinutes, chartBucket]);
+  }, [autoRefreshInterval, rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
 
   const modelOptions = useMemo(() => {
     const models = new Set(breakdown.map((item) => item.model));
@@ -720,15 +590,7 @@ export default function App() {
     }
     setHomeStatus("Switching...");
     try {
-      const response = await fetch("/api/homes/active", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: nextId })
-      });
-      if (!response.ok) {
-        throw new Error("Failed to switch home");
-      }
-      const updated = (await response.json()) as CodexHome;
+      const updated = await setActiveHome(nextId);
       setActiveHomeId(updated.id);
       await refreshHomes();
       await refreshAll();
@@ -746,18 +608,10 @@ export default function App() {
     }
     setHomeStatus("Adding...");
     try {
-      const response = await fetch("/api/homes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path,
-          label: newHomeLabel.trim().length ? newHomeLabel.trim() : undefined
-        })
+      const created = await createHome({
+        path,
+        label: newHomeLabel.trim().length ? newHomeLabel.trim() : undefined
       });
-      if (!response.ok) {
-        throw new Error("Failed to add home");
-      }
-      const created = (await response.json()) as CodexHome;
       setActiveHomeId(created.id);
       setNewHomePath("");
       setNewHomeLabel("");
@@ -775,10 +629,7 @@ export default function App() {
     }
     setHomeStatus("Deleting...");
     try {
-      const response = await fetch(`/api/homes/${homeId}`, { method: "DELETE" });
-      if (!response.ok) {
-        throw new Error("Failed to delete home");
-      }
+      await deleteHome(homeId);
       await refreshHomes();
       await refreshAll();
       setHomeStatus("Deleted");
@@ -790,14 +641,7 @@ export default function App() {
   async function handleSavePricing() {
     setPricingStatus("Saving...");
     try {
-      const response = await fetch("/api/pricing", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pricingRules)
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update pricing");
-      }
+      await replacePricing(pricingRules);
       setPricingStatus("Saved");
       await refreshAll();
     } catch (err) {
@@ -808,10 +652,7 @@ export default function App() {
   async function handleRecomputeCosts() {
     setPricingStatus("Recomputing...");
     try {
-      const response = await fetch("/api/pricing/recompute", { method: "POST" });
-      if (!response.ok) {
-        throw new Error("Failed to recompute costs");
-      }
+      await recomputePricing();
       setPricingStatus("Recomputed");
       await refreshAll();
     } catch (err) {
@@ -827,19 +668,17 @@ export default function App() {
     }
     setSettingsStatus("Saving...");
     try {
-      const response = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context_active_minutes: parsed })
-      });
-      if (!response.ok) {
-        throw new Error("Failed to update settings");
-      }
-      const data = (await response.json()) as SettingsResponse;
+      const data = await updateSettings({ context_active_minutes: parsed });
       const minutes = data.context_active_minutes ?? parsed;
       setActiveMinutes(minutes);
       setActiveMinutesInput(minutes.toString());
       setSettingsStatus("Saved");
+      setStorageInfo({
+        dbPath: data.db_path,
+        pricingDefaultsPath: data.pricing_defaults_path,
+        appDataDir: data.app_data_dir,
+        legacyBackupDir: data.legacy_backup_dir ?? null
+      });
       await refreshAll();
     } catch (err) {
       setSettingsStatus(err instanceof Error ? err.message : "Save failed");
@@ -853,11 +692,7 @@ export default function App() {
     ingestInFlight.current = true;
     setIsIngesting(true);
     try {
-      const response = await fetch("/api/ingest/run", { method: "POST" });
-      if (!response.ok) {
-        throw new Error("Failed to run ingestion");
-      }
-      const stats = (await response.json()) as IngestStats;
+      const stats = await runIngest();
       setIngestStats(stats);
       await refreshAll();
     } catch (err) {
@@ -879,10 +714,7 @@ export default function App() {
     }
     setHomeStatus("Deleting data...");
     try {
-      const response = await fetch(`/api/homes/${activeHomeId}/data`, { method: "DELETE" });
-      if (!response.ok) {
-        throw new Error("Failed to delete data");
-      }
+      await clearHomeData(activeHomeId);
       await refreshAll();
       setHomeStatus("Data deleted");
     } catch (err) {
@@ -1882,6 +1714,44 @@ export default function App() {
                     <span className="status">{settingsStatus}</span>
                   </div>
                   <div className="note">Updates the Active Sessions panel and refresh cycle.</div>
+                </div>
+
+                <div className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Storage</h2>
+                      <p>Local app data paths for the desktop client.</p>
+                    </div>
+                  </div>
+                  <div className="settings-kv">
+                    <div className="settings-kv-row">
+                      <span className="settings-kv-key">App Data</span>
+                      <span className="settings-kv-value">
+                        {storageInfo?.appDataDir ?? "—"}
+                      </span>
+                    </div>
+                    <div className="settings-kv-row">
+                      <span className="settings-kv-key">Database</span>
+                      <span className="settings-kv-value">{storageInfo?.dbPath ?? "—"}</span>
+                    </div>
+                    <div className="settings-kv-row">
+                      <span className="settings-kv-key">Pricing</span>
+                      <span className="settings-kv-value">
+                        {storageInfo?.pricingDefaultsPath ?? "—"}
+                      </span>
+                    </div>
+                    {storageInfo?.legacyBackupDir && (
+                      <div className="settings-kv-row">
+                        <span className="settings-kv-key">Legacy Backup</span>
+                        <span className="settings-kv-value">
+                          {storageInfo.legacyBackupDir}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="note">
+                    Desktop builds keep data in the OS app data directory.
+                  </div>
                 </div>
               </section>
 

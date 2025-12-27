@@ -16,6 +16,7 @@ Everything runs on `127.0.0.1` and stores data in a local SQLite database.
 ## Architecture
 
 - Rust workspace:
+  - `crates/app/` (`tracker_app`): shared app layer for DB init, pricing defaults, ingestion, and range parsing.
   - `crates/server/` (`tracker_server`): Axum server + JSON API + static file hosting for the web UI.
   - `crates/ingest/` (`ingest`): discovers Codex logs under the configured Codex home and ingests them incrementally.
   - `crates/db/` (`tracker_db`): SQLite schema/migrations + query layer.
@@ -23,6 +24,8 @@ Everything runs on `127.0.0.1` and stores data in a local SQLite database.
 - Web UI:
   - `apps/web/`: React + TypeScript + Vite, Tailwind CSS, and Recharts.
   - Built assets live in `apps/web/dist` (or a custom dist directory).
+- Desktop app:
+  - `apps/desktop/src-tauri`: Tauri shell that hosts the React UI and calls the Rust backend via IPC.
 
 ## Quick start (from source)
 
@@ -47,6 +50,22 @@ cargo run -p tracker_server
 
 It binds to `http://127.0.0.1:3030` and will try to open your browser automatically.
 
+## Desktop app (Tauri)
+
+Build the frontend once:
+
+```bash
+cd apps/web
+npm install
+npm run build
+```
+
+Run the desktop app:
+
+```bash
+cargo run -p codex_tracker_desktop
+```
+
 ## Configuration and data locations
 
 ### Codex log source (“Codex home”)
@@ -67,6 +86,9 @@ Typical paths:
 
 - `cargo run`: `target/debug/codex-tracker.sqlite`
 - bundle: `bundle/codex-tracker.sqlite`
+
+For the desktop app, the database and pricing defaults live in the OS app data directory
+(Tauri `AppData`), surfaced in the Settings modal under Storage.
 
 ### Frontend asset directory
 

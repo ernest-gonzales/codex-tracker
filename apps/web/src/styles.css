@@ -621,6 +621,31 @@ tbody td {
   margin-bottom: 24px;
 }
 
+.settings-kv {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.settings-kv-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.settings-kv-key {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+}
+
+.settings-kv-value {
+  word-break: break-word;
+  font-size: 12px;
+}
+
 .active-sessions {
   margin-bottom: 24px;
 }
