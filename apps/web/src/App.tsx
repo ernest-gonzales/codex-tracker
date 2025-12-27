@@ -75,30 +75,31 @@ type RangeValue = (typeof RANGE_OPTIONS)[number]["value"];
 type AutoRefreshValue = (typeof AUTO_REFRESH_OPTIONS)[number]["value"];
 type ChartBucketMode = "day" | "hour";
 
-const currency = new Intl.NumberFormat("en-US", {
+const resolvedLocale = typeof navigator !== "undefined" ? navigator.language : "en-US";
+const currency = new Intl.NumberFormat(resolvedLocale, {
   style: "currency",
   currency: "USD",
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
-const numberFormat = new Intl.NumberFormat("fr-FR");
-const compactNumberFormat = new Intl.NumberFormat("fr-FR", {
+const numberFormat = new Intl.NumberFormat(resolvedLocale);
+const compactNumberFormat = new Intl.NumberFormat(resolvedLocale, {
   notation: "compact",
   compactDisplay: "short",
   maximumFractionDigits: 1
 });
-const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
+const dateTimeFormat = new Intl.DateTimeFormat(resolvedLocale, {
   month: "short",
   day: "2-digit",
   hour: "2-digit",
   minute: "2-digit"
 });
-const dateFormat = new Intl.DateTimeFormat("en-US", {
+const dateFormat = new Intl.DateTimeFormat(resolvedLocale, {
   year: "numeric",
   month: "short",
   day: "2-digit"
 });
-const hourFormat = new Intl.DateTimeFormat("en-US", {
+const hourFormat = new Intl.DateTimeFormat(resolvedLocale, {
   hour: "2-digit",
   minute: "2-digit"
 });
@@ -274,6 +275,8 @@ export default function App() {
   const [newHomePath, setNewHomePath] = useState<string>("");
   const [newHomeLabel, setNewHomeLabel] = useState<string>("");
   const [homeStatus, setHomeStatus] = useState<string>("");
+  const [dangerStatus, setDangerStatus] = useState<string>("");
+  const [deleteConfirm, setDeleteConfirm] = useState<string>("");
   const [pricingStatus, setPricingStatus] = useState<string>("");
   const [settingsStatus, setSettingsStatus] = useState<string>("");
   const [storageInfo, setStorageInfo] = useState<{
@@ -316,6 +319,7 @@ export default function App() {
     1,
     Math.ceil(costSeries.length / COST_BREAKDOWN_PAGE_SIZE)
   );
+  const deleteReady = deleteConfirm.trim().toLowerCase() === "delete";
   const pagedCostSeries = costSeries.slice(
     (costSeriesPage - 1) * COST_BREAKDOWN_PAGE_SIZE,
     costSeriesPage * COST_BREAKDOWN_PAGE_SIZE
@@ -684,19 +688,21 @@ export default function App() {
 
   async function handleDeleteData() {
     if (!activeHomeId) {
-      setHomeStatus("Select a home first");
+      setDangerStatus("Select a home first");
       return;
     }
-    if (!window.confirm("Delete all ingested data for the active home?")) {
+    if (!deleteReady) {
+      setDangerStatus('Type "DELETE" to confirm');
       return;
     }
-    setHomeStatus("Deleting data...");
+    setDangerStatus("Deleting data...");
     try {
       await clearHomeData(activeHomeId);
       await refreshAll();
-      setHomeStatus("Data deleted");
+      setDangerStatus("Data deleted");
+      setDeleteConfirm("");
     } catch (err) {
-      setHomeStatus(err instanceof Error ? err.message : "Delete failed");
+      setDangerStatus(err instanceof Error ? err.message : "Delete failed");
     }
   }
 
@@ -843,9 +849,14 @@ export default function App() {
                     </thead>
                     <tbody>
                       {homes.map((home) => (
-                        <tr key={home.id}>
+                        <tr
+                          key={home.id}
+                          className={home.id === activeHomeId ? "active-row" : undefined}
+                        >
                           <td>{home.label}</td>
-                          <td>{home.path}</td>
+                          <td>
+                            <span className="mono">{home.path}</span>
+                          </td>
                           <td>
                             {home.last_seen_at
                               ? new Date(home.last_seen_at).toLocaleString()
@@ -866,14 +877,30 @@ export default function App() {
                   </table>
                 </div>
               )}
-              <div className="row">
-                <button
-                  className="button danger"
-                  onClick={handleDeleteData}
-                  disabled={!activeHomeId}
-                >
-                  Delete Ingested Data
-                </button>
+              <div className="danger-zone">
+                <div className="danger-zone-header">
+                  <div>
+                    <h3>Danger Zone</h3>
+                    <p>Delete all ingested data for the active home.</p>
+                  </div>
+                </div>
+                <label className="label">Type DELETE to confirm</label>
+                <input
+                  className="input"
+                  value={deleteConfirm}
+                  onChange={(event) => setDeleteConfirm(event.target.value)}
+                  placeholder="DELETE"
+                />
+                <div className="row">
+                  <button
+                    className="button danger"
+                    onClick={handleDeleteData}
+                    disabled={!activeHomeId || !deleteReady}
+                  >
+                    Delete Ingested Data
+                  </button>
+                  <span className="status">{dangerStatus}</span>
+                </div>
               </div>
               <label className="label">Add Home</label>
               <input
@@ -930,22 +957,28 @@ export default function App() {
               <div className="settings-kv">
                 <div className="settings-kv-row">
                   <span className="settings-kv-key">App Data</span>
-                  <span className="settings-kv-value">{storageInfo?.appDataDir ?? "—"}</span>
+                  <span className="settings-kv-value mono">
+                    {storageInfo?.appDataDir ?? "—"}
+                  </span>
                 </div>
                 <div className="settings-kv-row">
                   <span className="settings-kv-key">Database</span>
-                  <span className="settings-kv-value">{storageInfo?.dbPath ?? "—"}</span>
+                  <span className="settings-kv-value mono">
+                    {storageInfo?.dbPath ?? "—"}
+                  </span>
                 </div>
                 <div className="settings-kv-row">
                   <span className="settings-kv-key">Pricing</span>
-                  <span className="settings-kv-value">
+                  <span className="settings-kv-value mono">
                     {storageInfo?.pricingDefaultsPath ?? "—"}
                   </span>
                 </div>
                 {storageInfo?.legacyBackupDir && (
                   <div className="settings-kv-row">
                     <span className="settings-kv-key">Legacy Backup</span>
-                    <span className="settings-kv-value">{storageInfo.legacyBackupDir}</span>
+                    <span className="settings-kv-value mono">
+                      {storageInfo.legacyBackupDir}
+                    </span>
                   </div>
                 )}
               </div>

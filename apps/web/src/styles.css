@@ -15,6 +15,7 @@
   --accent: #7df9ff;
   --accent-2: #ffb347;
   --border: #2f3c6d;
+  --focus: rgba(125, 249, 255, 0.55);
   --shadow: 0 20px 50px rgba(5, 10, 30, 0.55);
 }
 
@@ -184,6 +185,15 @@ h1.brand-name {
 
 .icon-button:active {
   transform: translateY(0);
+}
+
+.icon-button:focus-visible,
+.button:focus-visible,
+.input:focus-visible,
+.select-native:focus-visible,
+.tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .modal-overlay {
@@ -510,6 +520,12 @@ h1.brand-name {
   overflow-x: auto;
 }
 
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+}
+
 .events-table table {
   font-size: 11px;
 }
@@ -554,6 +570,10 @@ thead th {
 tbody td {
   padding: 10px 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.active-row td {
+  background: rgba(125, 249, 255, 0.08);
 }
 
 .model-row td {
@@ -693,6 +713,27 @@ tbody td {
 
 .settings-kv-value {
   word-break: break-word;
+  font-size: 12px;
+}
+
+.danger-zone {
+  margin: 12px 0 16px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 109, 109, 0.4);
+  background: rgba(255, 109, 109, 0.08);
+  display: grid;
+  gap: 8px;
+}
+
+.danger-zone-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.danger-zone-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
   font-size: 12px;
 }
 
