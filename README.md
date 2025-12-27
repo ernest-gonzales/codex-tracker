@@ -67,6 +67,12 @@ Run the desktop app:
 cargo run -p codex_tracker_desktop
 ```
 
+Single command (build UI + run desktop app):
+
+```bash
+./scripts/run-desktop.sh
+```
+
 ## Configuration and data locations
 
 ### Codex log source (“Codex home”)
