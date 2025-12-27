@@ -108,8 +108,40 @@ fn find_string<'a>(value: &'a Value, paths: &[&[&str]]) -> Option<&'a str> {
     None
 }
 
+fn normalize_timestamp(raw: &str) -> Option<String> {
+    if let Ok(parsed) = DateTime::parse_from_rfc3339(raw) {
+        return Some(
+            parsed
+                .with_timezone(&Utc)
+                .to_rfc3339_opts(SecondsFormat::Millis, true),
+        );
+    }
+    if let Ok(parsed) = chrono::NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S") {
+        let dt = DateTime::<Utc>::from_naive_utc_and_offset(parsed, Utc);
+        return Some(dt.to_rfc3339_opts(SecondsFormat::Millis, true));
+    }
+    if let Ok(parsed) = chrono::NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S") {
+        let dt = DateTime::<Utc>::from_naive_utc_and_offset(parsed, Utc);
+        return Some(dt.to_rfc3339_opts(SecondsFormat::Millis, true));
+    }
+    if raw.chars().all(|ch| ch.is_ascii_digit()) {
+        if let Ok(value) = raw.parse::<i64>() {
+            let (secs, nanos) = if raw.len() > 10 {
+                (value / 1000, ((value % 1000).abs() as u32) * 1_000_000)
+            } else {
+                (value, 0)
+            };
+            if let Some(dt) = DateTime::<Utc>::from_timestamp(secs, nanos) {
+                return Some(dt.to_rfc3339_opts(SecondsFormat::Millis, true));
+            }
+        }
+    }
+    None
+}
+
 fn extract_timestamp(value: &Value) -> Option<String> {
-    find_string(value, &[&["timestamp"], &["ts"], &["time"]]).map(str::to_string)
+    find_string(value, &[&["timestamp"], &["ts"], &["time"]])
+        .and_then(|raw| normalize_timestamp(raw))
 }
 
 fn extract_model(value: &Value) -> Option<String> {
@@ -807,6 +839,7 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
         }
         let mut reader = BufReader::new(file);
         let mut buf = String::new();
+        let mut bytes_read = 0u64;
         let mut events = Vec::new();
         let mut limit_snapshots = Vec::new();
         let mut message_events = Vec::new();
@@ -816,7 +849,8 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
         loop {
             match reader.read_line(&mut buf) {
                 Ok(0) => break,
-                Ok(_) => {
+                Ok(bytes) => {
+                    bytes_read = bytes_read.saturating_add(bytes as u64);
                     let line = buf.trim_end_matches(&['\n', '\r'][..]);
                     if let Some(model) = extract_model_from_line(line) {
                         current_model = Some(model);
@@ -853,7 +887,7 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                 }
             }
         }
-        stats.bytes_read += file_len.saturating_sub(start_offset);
+        stats.bytes_read += bytes_read;
         if !events.is_empty() {
             stats.events_inserted += db.insert_usage_events(home.id, &events)?;
         }
@@ -869,7 +903,7 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
             file_path,
             inode,
             mtime,
-            byte_offset: file_len,
+            byte_offset: start_offset.saturating_add(bytes_read),
             last_event_key: events.last().map(|event| event.id.clone()),
             updated_at: Utc::now().to_rfc3339(),
             last_model: current_model,
@@ -1075,6 +1109,14 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_timestamp_to_utc() {
+        let line = r#"{"timestamp":"2025-12-19T21:31:36+02:00","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-test","total_token_usage":{"input_tokens":10,"cached_input_tokens":1,"output_tokens":2,"reasoning_output_tokens":0,"total_tokens":12},"model_context_window":100}}}"#;
+        let event = extract_usage_event_from_line(line, "test.log", None, "session-1", None)
+            .expect("event");
+        assert_eq!(event.ts, "2025-12-19T19:31:36.000Z");
+    }
+
+    #[test]
     fn extracts_usage_event_with_fallback_model() {
         let line = r#"{"timestamp":"2025-12-19T21:31:36.168Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":1,"output_tokens":2,"reasoning_output_tokens":0,"total_tokens":12},"model_context_window":100}}}"#;
         let event =
@@ -1174,11 +1216,42 @@ mod tests {
     }
 
     #[test]
+    fn ingest_does_not_advance_cursor_on_invalid_utf8() {
+        let dir = tempdir().expect("temp dir");
+        let db_path = dir.path().join("ingest.sqlite");
+        let mut db = Db::open(&db_path).expect("open db");
+        db.migrate().expect("migrate db");
+
+        let log_path = dir.path().join("bad.log");
+        let line = r#"{"timestamp":"2025-12-19T21:31:36.168Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-test","total_token_usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2},"model_context_window":100}}}"#;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(line.as_bytes());
+        bytes.push(b'\n');
+        bytes.push(0xff);
+        fs::write(&log_path, bytes).expect("write log");
+
+        let stats = ingest_codex_home(&mut db, dir.path()).expect("ingest");
+        assert_eq!(stats.events_inserted, 1);
+        assert_eq!(stats.issues.len(), 1);
+
+        let home = db
+            .get_home_by_path(&dir.path().to_string_lossy())
+            .expect("home lookup")
+            .expect("home");
+        let cursor = db
+            .get_cursor(home.id, &log_path.to_string_lossy())
+            .expect("cursor lookup")
+            .expect("cursor");
+        let expected_offset = (line.len() + 1) as u64;
+        assert_eq!(cursor.byte_offset, expected_offset);
+    }
+
+    #[test]
     fn extracts_user_message_event() {
         let line = r#"{"timestamp":"2025-01-01T00:00:00Z","type":"event_msg","payload":{"type":"user_message","info":{"role":"user","content":"Hello"}}}"#;
         let event =
             extract_message_event_from_line(line, "test.log", "session-1").expect("message event");
-        assert_eq!(event.ts, "2025-01-01T00:00:00Z");
+        assert_eq!(event.ts, "2025-01-01T00:00:00.000Z");
         assert_eq!(event.role, "user");
         assert_eq!(event.source, "test.log");
         assert_eq!(event.session_id, "session-1");
