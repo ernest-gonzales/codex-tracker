@@ -309,6 +309,36 @@ impl Db {
         }
     }
 
+    pub fn latest_limit_snapshot_current(
+        &self,
+        codex_home_id: i64,
+        limit_type: &str,
+    ) -> Result<Option<UsageLimitSnapshot>> {
+        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT limit_type, percent_left, reset_at, ts, source, raw_line
+            FROM usage_limit_snapshot
+            WHERE codex_home_id = ?1 AND limit_type = ?2 AND reset_at >= ?3
+            ORDER BY ts DESC
+            LIMIT 1
+            "#,
+        )?;
+        let mut rows = stmt.query(params![codex_home_id, limit_type, now])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(UsageLimitSnapshot {
+                limit_type: row.get(0)?,
+                percent_left: row.get(1)?,
+                reset_at: row.get(2)?,
+                observed_at: row.get(3)?,
+                source: row.get(4)?,
+                raw_line: row.get(5)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn limit_windows_7d(
         &self,
         codex_home_id: i64,
@@ -373,7 +403,7 @@ impl Db {
         codex_home_id: i64,
         limit_type: &str,
     ) -> Result<Option<UsageLimitCurrentWindow>> {
-        let snapshot = self.latest_limit_snapshot(codex_home_id, limit_type)?;
+        let snapshot = self.latest_limit_snapshot_current(codex_home_id, limit_type)?;
         let snapshot = match snapshot {
             Some(snapshot) => snapshot,
             None => return Ok(None),
@@ -2185,6 +2215,31 @@ mod tests {
             )
             .expect("count");
         assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn limit_current_window_ignores_stale_snapshot() {
+        let mut db = setup_db();
+        let home = setup_home(&mut db);
+        let now = Utc::now();
+        let reset_at = (now - Duration::hours(1))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let observed_at = (now - Duration::hours(2))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let snapshots = vec![make_limit_snapshot(
+            "7d",
+            0.0,
+            &reset_at,
+            &observed_at,
+            "source-a",
+        )];
+        db.insert_limit_snapshots(home.id, &snapshots)
+            .expect("insert limits");
+
+        let current = db
+            .limit_current_window(home.id, "7d")
+            .expect("current window");
+        assert!(current.is_none());
     }
 
     #[test]

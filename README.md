@@ -3,15 +3,6 @@
 Local-only Codex CLI usage tracker (tokens + cost) with a Rust (Axum) backend and a React dashboard.
 Everything runs on `127.0.0.1` and stores data in a local SQLite database.
 
-<!--
-Media (recommended):
-- Logo: add `docs/assets/logo.png` (transparent, ~512x512) and then uncomment the block below.
-
-<p align="center">
-  <img src="docs/assets/logo.png" width="120" alt="Codex Tracker logo" />
-</p>
--->
-
 ## Features
 
 - Token + cost totals for a selected time range (and all-time).
@@ -21,16 +12,6 @@ Media (recommended):
 - Usage limits (5h + 7d) with message counts derived from logs.
 - Multiple Codex homes (switch between different `~/.codex` directories).
 - Editable pricing rules with cost recomputation.
-
-## Screenshots
-
-<!--
-Add images under `docs/assets/` and then uncomment:
-
-![Dashboard](docs/assets/screenshot-dashboard.png)
-![Pricing editor](docs/assets/screenshot-pricing.png)
-![Limits](docs/assets/screenshot-limits.png)
--->
 
 ## Architecture
 
@@ -46,6 +27,7 @@ Add images under `docs/assets/` and then uncomment:
 ## Quick start (from source)
 
 Requirements:
+
 - Rust stable (this repo uses Rust 2024 edition; use a recent stable toolchain).
 - Node.js + npm (recommended: current LTS).
 
@@ -70,22 +52,26 @@ It binds to `http://127.0.0.1:3030` and will try to open your browser automatica
 ### Codex log source (“Codex home”)
 
 The app ingests Codex CLI logs from the currently selected Codex home:
+
 - Default: `$CODEX_HOME` if set, otherwise `~/.codex`.
 - Change it in the UI (Homes / Settings) to point at another directory.
 
 ### Database and pricing defaults
 
 The server stores its runtime files next to the server executable:
+
 - SQLite DB: `codex-tracker.sqlite`
 - Pricing defaults JSON: `codex-tracker-pricing.json`
 
 Typical paths:
+
 - `cargo run`: `target/debug/codex-tracker.sqlite`
 - bundle: `bundle/codex-tracker.sqlite`
 
 ### Frontend asset directory
 
 The server resolves the UI asset directory in this order:
+
 1. `$CODEX_TRACKER_DIST` (absolute or relative path)
 2. `./dist` next to the server executable (useful for bundles)
 3. `apps/web/dist` (dev default)
@@ -98,6 +84,7 @@ The server resolves the UI asset directory in this order:
 ```
 
 This produces a portable `bundle/` directory containing:
+
 - `bundle/codex-tracker` (server binary)
 - `bundle/dist/` (built frontend assets)
 

@@ -421,10 +421,10 @@ async fn limits_latest(
     let mut db = open_db(&state)?;
     let home = require_active_home(&mut db)?;
     let primary = db
-        .latest_limit_snapshot(home.id, "5h")
+        .latest_limit_snapshot_current(home.id, "5h")
         .map_err(to_api_error)?;
     let secondary = db
-        .latest_limit_snapshot(home.id, "7d")
+        .latest_limit_snapshot_current(home.id, "7d")
         .map_err(to_api_error)?;
     Ok(Json(LimitsResponse { primary, secondary }))
 }
