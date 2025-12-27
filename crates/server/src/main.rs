@@ -158,6 +158,9 @@ async fn main() {
     if let Err(err) = sync_pricing_defaults(&db_path, &pricing_defaults_path) {
         eprintln!("failed to sync pricing defaults: {}", err);
     }
+    if let Err(err) = refresh_data(&db_path) {
+        eprintln!("failed to refresh data on startup: {}", err);
+    }
     let state = AppState {
         db_path,
         pricing_defaults_path,
@@ -703,6 +706,18 @@ fn setup_db(path: &Path) -> Result<(), tracker_db::DbError> {
     Ok(())
 }
 
+fn refresh_data(path: &Path) -> Result<(), String> {
+    let mut db = Db::open(path).map_err(|err| format!("open db: {}", err))?;
+    let home = db
+        .ensure_active_home()
+        .map_err(|err| format!("ensure active home: {}", err))?;
+    ingest_codex_home(&mut db, Path::new(&home.path))
+        .map_err(|err| format!("ingest: {}", err))?;
+    db.update_event_costs(home.id)
+        .map_err(|err| format!("update costs: {}", err))?;
+    Ok(())
+}
+
 fn resolve_range(query: RangeQuery) -> Result<TimeRange, (StatusCode, Json<ApiError>)> {
     if let (Some(start), Some(end)) = (query.start.clone(), query.end.clone()) {
         let start = normalize_rfc3339_to_utc(&start)?;
@@ -940,6 +955,30 @@ mod tests {
     }
 
     #[test]
+    fn refresh_data_ingests_on_startup() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let db_path = dir.path().join("codex-tracker.sqlite");
+        setup_db(&db_path).expect("setup db");
+
+        let log_dir = dir.path().join("sessions/2025/01/01");
+        fs::create_dir_all(&log_dir).expect("create log dir");
+        let log_path = log_dir.join("rollout-2025-01-01T00-00-00-1234.jsonl");
+        let line = r#"{"timestamp":"2025-01-01T00:00:10Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5.2","total_token_usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2},"model_context_window":100}}}"#;
+        fs::write(&log_path, line).expect("write log");
+
+        let db = Db::open(&db_path).expect("open db");
+        let home = db
+            .get_or_create_home(&dir.path().to_string_lossy(), Some("Default"))
+            .expect("home");
+        db.set_active_home(home.id).expect("active");
+
+        refresh_data(&db_path).expect("refresh data");
+
+        let home = db.get_active_home().expect("active home").expect("home");
+        assert_eq!(db.count_usage_events(home.id).expect("count"), 1);
+    }
+
+    #[test]
     fn load_initial_pricing_is_non_empty() {
         let rules = load_initial_pricing().expect("load initial pricing");
         assert!(!rules.is_empty());
@@ -1023,6 +1062,33 @@ mod tests {
     #[tokio::test]
     async fn limits_latest_endpoint_returns_limits() {
         let test_state = setup_state_with_data().await;
+        let mut db = Db::open(&test_state.state.db_path).expect("open db");
+        let home = db.get_active_home().expect("active home").expect("home");
+        let observed_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
+        let reset_at = (Utc::now() + Duration::minutes(30))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        db.insert_limit_snapshots(
+            home.id,
+            &[
+                UsageLimitSnapshot {
+                    limit_type: "5h".to_string(),
+                    percent_left: 70.0,
+                    reset_at: reset_at.clone(),
+                    observed_at: observed_at.clone(),
+                    source: "source-now".to_string(),
+                    raw_line: None,
+                },
+                UsageLimitSnapshot {
+                    limit_type: "7d".to_string(),
+                    percent_left: 40.0,
+                    reset_at,
+                    observed_at,
+                    source: "source-now".to_string(),
+                    raw_line: None,
+                },
+            ],
+        )
+        .expect("insert limits");
         let app = build_app(test_state.state);
         let request = Request::builder()
             .uri("/api/limits")
@@ -1049,18 +1115,72 @@ mod tests {
         let test_state = setup_state_with_data().await;
         let mut db = Db::open(&test_state.state.db_path).expect("open db");
         let home = db.get_active_home().expect("active home").expect("home");
+        let now = Utc::now();
+        let event_ts = (now - Duration::minutes(10))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        db.insert_usage_events(
+            home.id,
+            &[UsageEvent {
+                id: "e-now".to_string(),
+                ts: event_ts.clone(),
+                model: "gpt-5.2".to_string(),
+                usage: UsageTotals {
+                    input_tokens: 1000,
+                    cached_input_tokens: 200,
+                    output_tokens: 300,
+                    reasoning_output_tokens: 120,
+                    total_tokens: 1300,
+                },
+                context: ContextStatus {
+                    context_used: 1300,
+                    context_window: 100_000,
+                },
+                cost_usd: None,
+                reasoning_effort: Some("high".to_string()),
+                source: "source-now".to_string(),
+                session_id: "source-now".to_string(),
+                request_id: None,
+                raw_json: None,
+            }],
+        )
+        .expect("insert events");
         db.insert_message_events(
             home.id,
             &[MessageEvent {
                 id: "m1".to_string(),
-                ts: "2025-12-19T19:30:00Z".to_string(),
+                ts: event_ts.clone(),
                 role: "user".to_string(),
-                source: "source-a".to_string(),
-                session_id: "source-a".to_string(),
+                source: "source-now".to_string(),
+                session_id: "source-now".to_string(),
                 raw_json: None,
             }],
         )
         .expect("insert messages");
+        let observed_at = now.to_rfc3339_opts(SecondsFormat::Millis, true);
+        let reset_at = (now + Duration::minutes(30))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        db.insert_limit_snapshots(
+            home.id,
+            &[
+                UsageLimitSnapshot {
+                    limit_type: "5h".to_string(),
+                    percent_left: 70.0,
+                    reset_at: reset_at.clone(),
+                    observed_at: observed_at.clone(),
+                    source: "source-now".to_string(),
+                    raw_line: None,
+                },
+                UsageLimitSnapshot {
+                    limit_type: "7d".to_string(),
+                    percent_left: 40.0,
+                    reset_at,
+                    observed_at,
+                    source: "source-now".to_string(),
+                    raw_line: None,
+                },
+            ],
+        )
+        .expect("insert limits");
 
         let app = build_app(test_state.state);
         let request = Request::builder()
