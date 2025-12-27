@@ -160,7 +160,7 @@ async fn main() {
         .await
         .expect("bind server");
     let url = format!("http://{}", bind_addr);
-    if let Err(err) = open_browser(url) {
+    if let Err(err) = open_browser(&url) {
         eprintln!("failed to open browser: {}", err);
     }
     axum::serve(listener, app).await.expect("serve");
