@@ -25,6 +25,7 @@ const RANGE_OPTIONS = [
 
 const AUTO_REFRESH_OPTIONS = [
   { value: "off", label: "Off", ms: 0 },
+  { value: "15s", label: "Every 15 seconds", ms: 15_000 },
   { value: "30s", label: "Every 30 seconds", ms: 30_000 },
   { value: "1m", label: "Every 1 minute", ms: 60_000 },
   { value: "5m", label: "Every 5 minutes", ms: 5 * 60_000 },
@@ -409,8 +410,8 @@ export default function App() {
   const [costBreakdownPage, setCostBreakdownPage] = useState<number>(1);
   const [costSeriesPage, setCostSeriesPage] = useState<number>(1);
   const [eventsPage, setEventsPage] = useState<number>(1);
-  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("30s");
-  const [chartBucketMode, setChartBucketMode] = useState<ChartBucketMode>("day");
+  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("15s");
+  const [chartBucketMode, setChartBucketMode] = useState<ChartBucketMode>("hour");
   const [exportMenuValue, setExportMenuValue] = useState<string>("");
   const ingestInFlight = useRef<boolean>(false);
   const [costBreakdownTab, setCostBreakdownTab] = useState<"model" | "day">("model");
@@ -617,7 +618,7 @@ export default function App() {
       handleIngest();
     }, autoRefreshInterval);
     return () => window.clearInterval(intervalId);
-  }, [autoRefreshInterval, rangeParamsString, modelFilter, activeMinutes]);
+  }, [autoRefreshInterval, rangeParamsString, modelFilter, activeMinutes, chartBucket]);
 
   const modelOptions = useMemo(() => {
     const models = new Set(breakdown.map((item) => item.model));
