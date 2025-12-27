@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as Select from "@radix-ui/react-select";
 import {
   Bar,
   BarChart,
@@ -321,27 +320,6 @@ export default function App() {
     (costSeriesPage - 1) * COST_BREAKDOWN_PAGE_SIZE,
     costSeriesPage * COST_BREAKDOWN_PAGE_SIZE
   );
-
-  useEffect(() => {
-    if (!isSettingsOpen) {
-      return;
-    }
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsSettingsOpen(false);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isSettingsOpen]);
 
   useEffect(() => {
     if (costBreakdownTab !== "model") {
@@ -799,122 +777,422 @@ export default function App() {
   return (
     <div className="app">
       <div className="glow" aria-hidden="true" />
-      <header className="hero">
-        <div className="hero-copy">
-          <div className="brand">
-            <div className="brand-mark" aria-hidden="true">
-              <CodexTrackerLogo />
+      {isSettingsOpen ? (
+        <section className="settings-page">
+          <header className="settings-header">
+            <div>
+              <h1 className="settings-title">Settings</h1>
+              <p className="settings-subtitle">
+                Codex homes, active window, pricing rules, and storage paths.
+              </p>
             </div>
-            <div className="brand-text">
-              <h1 className="brand-name">
-                Codex <span>Tracker</span>
-              </h1>
-            </div>
-          </div>
-          <p className="brand-tagline">Local usage intelligence for Codex.</p>
-          <p className="subtitle">
-            Monitor tokens, cost, and context pressure across models with fresh ranges and fast
-            exports.
-          </p>
-        </div>
-        <div className="range-panel">
-          <div className="range-panel-header">
-            <label className="label">Range</label>
             <button
-              className="icon-button"
+              className="button ghost"
               type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              aria-label="Open settings"
-              title="Settings"
+              onClick={() => setIsSettingsOpen(false)}
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                <path
-                  d="M12 15.6a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
-                <path
-                  d="M19.14 12.94a7.8 7.8 0 0 0 0-1.88l2.03-1.58a.9.9 0 0 0 .22-1.16l-1.92-3.32a.9.9 0 0 0-1.1-.4l-2.4.97a7.6 7.6 0 0 0-1.63-.94l-.37-2.55a.9.9 0 0 0-.89-.78H8.9a.9.9 0 0 0-.89.78l-.37 2.55c-.58.23-1.13.54-1.63.94l-2.4-.97a.9.9 0 0 0-1.1.4L.6 8.32a.9.9 0 0 0 .22 1.16l2.03 1.58a7.8 7.8 0 0 0 0 1.88L.82 14.52a.9.9 0 0 0-.22 1.16l1.92 3.32a.9.9 0 0 0 1.1.4l2.4-.97c.5.4 1.05.71 1.63.94l.37 2.55a.9.9 0 0 0 .89.78h4.2a.9.9 0 0 0 .89-.78l.37-2.55c.58-.23 1.13-.54 1.63-.94l2.4.97a.9.9 0 0 0 1.1-.4l1.92-3.32a.9.9 0 0 0-.22-1.16l-2.03-1.58Z"
-                  fill="currentColor"
-                  opacity="0.55"
-                />
-              </svg>
+              Back to Dashboard
             </button>
-          </div>
-          <Select.Root value={range} onValueChange={(value) => setRange(value as RangeValue)}>
-            <Select.Trigger className="select-trigger">
-              <Select.Value placeholder="Select range" />
-            </Select.Trigger>
-            <Select.Content className="select-content" position="popper">
-              <Select.Viewport>
-                {RANGE_OPTIONS.map((option) => (
-                  <Select.Item key={option.value} value={option.value} className="select-item">
-                    <Select.ItemText>{option.label}</Select.ItemText>
-                  </Select.Item>
+          </header>
+          <section className="grid settings-grid settings-grid-full">
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Codex Homes</h2>
+                  <p>Switch between tracked log directories.</p>
+                </div>
+                <button className="button ghost" onClick={refreshHomes}>
+                  Reload
+                </button>
+              </div>
+              <label className="label">Active Home</label>
+              <select
+                className="select-native"
+                value={activeHomeId ?? ""}
+                onChange={(event) => {
+                  if (!event.target.value) {
+                    return;
+                  }
+                  handleSetActiveHome(Number(event.target.value));
+                }}
+              >
+                {homes.length === 0 && (
+                  <option value="" disabled>
+                    No homes found
+                  </option>
+                )}
+                {homes.map((home) => (
+                  <option key={home.id} value={home.id}>
+                    {home.label || home.path}
+                  </option>
                 ))}
-              </Select.Viewport>
-            </Select.Content>
-          </Select.Root>
-          {range === "custom" && (
-            <div className="custom-range">
+              </select>
+              <div className="note">
+                {activeHome ? `Path: ${activeHome.path}` : "Select a home to see details."}
+              </div>
+              {homes.length > 0 && (
+                <div className="table-wrap">
+                  <table className="compact-table">
+                    <thead>
+                      <tr>
+                        <th>Label</th>
+                        <th>Path</th>
+                        <th>Last Seen</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {homes.map((home) => (
+                        <tr key={home.id}>
+                          <td>{home.label}</td>
+                          <td>{home.path}</td>
+                          <td>
+                            {home.last_seen_at
+                              ? new Date(home.last_seen_at).toLocaleString()
+                              : "-"}
+                          </td>
+                          <td>
+                            <button
+                              className="button ghost small"
+                              onClick={() => handleDeleteHome(home.id)}
+                              disabled={homes.length === 1}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="row">
+                <button
+                  className="button danger"
+                  onClick={handleDeleteData}
+                  disabled={!activeHomeId}
+                >
+                  Delete Ingested Data
+                </button>
+              </div>
+              <label className="label">Add Home</label>
               <input
-                type="datetime-local"
-                value={customStart}
-                onChange={(event) => setCustomStart(event.target.value)}
+                className="input"
+                value={newHomePath}
+                onChange={(event) => setNewHomePath(event.target.value)}
+                placeholder="/Users/you/.codex"
               />
               <input
-                type="datetime-local"
-                value={customEnd}
-                onChange={(event) => setCustomEnd(event.target.value)}
+                className="input"
+                value={newHomeLabel}
+                onChange={(event) => setNewHomeLabel(event.target.value)}
+                placeholder="Label (optional)"
               />
+              <div className="row">
+                <button className="button" onClick={handleAddHome}>
+                  Add Home
+                </button>
+                <span className="status">{homeStatus}</span>
+              </div>
             </div>
-          )}
-          <button className="button" onClick={handleIngest} disabled={isRefreshing}>
-            <span className="button-content">
-              {isRefreshing && <span className="spinner" aria-hidden="true" />}
-              <span>Refresh</span>
-            </span>
-          </button>
-          <div className="ingest-stats">
-            <span>
-              {ingestStats
-                ? `Last scan: ${formatNumber(ingestStats.files_scanned)} files · Inserted ${formatNumber(
-                    ingestStats.events_inserted
-                  )} events`
-                : "Last scan: —"}
-            </span>
-          </div>
-          <div className="row">
-            <label className="label">Export</label>
-            <select
-              className="select-native"
-              value={exportMenuValue}
-              onChange={handleExportMenu}
-            >
-              <option value="" disabled>
-                Choose format
-              </option>
-              <option value="json">Export JSON</option>
-              <option value="csv">Export CSV</option>
-            </select>
-          </div>
-          <div className="row">
-            <label className="label">Auto refresh</label>
-            <select
-              className="select-native"
-              value={autoRefresh}
-              onChange={(event) => setAutoRefresh(event.target.value as AutoRefreshValue)}
-            >
-              {AUTO_REFRESH_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {error && <p className="error">{error}</p>}
-        </div>
-      </header>
+
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Active Window</h2>
+                  <p>Control what counts as active sessions.</p>
+                </div>
+              </div>
+              <label className="label">Active Session Window (Minutes)</label>
+              <input
+                className="input"
+                type="number"
+                min="1"
+                value={activeMinutesInput}
+                onChange={(event) => setActiveMinutesInput(event.target.value)}
+              />
+              <div className="row">
+                <button className="button" onClick={handleSaveActiveMinutes}>
+                  Save Window
+                </button>
+                <span className="status">{settingsStatus}</span>
+              </div>
+              <div className="note">Updates the Active Sessions panel and refresh cycle.</div>
+            </div>
+
+            <div className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Storage</h2>
+                  <p>Local app data paths for the desktop client.</p>
+                </div>
+              </div>
+              <div className="settings-kv">
+                <div className="settings-kv-row">
+                  <span className="settings-kv-key">App Data</span>
+                  <span className="settings-kv-value">{storageInfo?.appDataDir ?? "—"}</span>
+                </div>
+                <div className="settings-kv-row">
+                  <span className="settings-kv-key">Database</span>
+                  <span className="settings-kv-value">{storageInfo?.dbPath ?? "—"}</span>
+                </div>
+                <div className="settings-kv-row">
+                  <span className="settings-kv-key">Pricing</span>
+                  <span className="settings-kv-value">
+                    {storageInfo?.pricingDefaultsPath ?? "—"}
+                  </span>
+                </div>
+                {storageInfo?.legacyBackupDir && (
+                  <div className="settings-kv-row">
+                    <span className="settings-kv-key">Legacy Backup</span>
+                    <span className="settings-kv-value">{storageInfo.legacyBackupDir}</span>
+                  </div>
+                )}
+              </div>
+              <div className="note">
+                Desktop builds keep data in the OS app data directory.
+              </div>
+            </div>
+          </section>
+
+          <section className="panel settings-pricing">
+            <div className="panel-header">
+              <div>
+                <h2>Pricing Rules</h2>
+                <p>Override model pricing and recompute stored costs.</p>
+              </div>
+              <div className="row">
+                <button className="button ghost" onClick={addPricingRule}>
+                  Add Rule
+                </button>
+                <button className="button" onClick={handleSavePricing}>
+                  Save Pricing
+                </button>
+                <button className="button ghost" onClick={handleRecomputeCosts}>
+                  Recompute Costs
+                </button>
+                <span className="status">{pricingStatus}</span>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Model Pattern</th>
+                    <th>Input / 1M</th>
+                    <th>Cached / 1M</th>
+                    <th>Output / 1M</th>
+                    <th>Effective From</th>
+                    <th>Effective To</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pricingRules.map((rule, index) => {
+                    const effectiveToValue = formatDateTimeLocal(rule.effective_to);
+                    return (
+                      <tr key={rule.id ?? `${rule.model_pattern}-${index}`}>
+                        <td>
+                          <input
+                            className="input"
+                            value={rule.model_pattern}
+                            onChange={(event) =>
+                              updatePricingRule(index, { model_pattern: event.target.value })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="number"
+                            step="0.0001"
+                            value={rule.input_per_1m}
+                            onChange={(event) =>
+                              updatePricingRule(index, {
+                                input_per_1m: Number(event.target.value)
+                              })
+                            }
+                          />
+                          <div className="input-hint">{formatCurrency(rule.input_per_1m)}</div>
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="number"
+                            step="0.0001"
+                            value={rule.cached_input_per_1m}
+                            onChange={(event) =>
+                              updatePricingRule(index, {
+                                cached_input_per_1m: Number(event.target.value)
+                              })
+                            }
+                          />
+                          <div className="input-hint">
+                            {formatCurrency(rule.cached_input_per_1m)}
+                          </div>
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="number"
+                            step="0.0001"
+                            value={rule.output_per_1m}
+                            onChange={(event) =>
+                              updatePricingRule(index, {
+                                output_per_1m: Number(event.target.value)
+                              })
+                            }
+                          />
+                          <div className="input-hint">{formatCurrency(rule.output_per_1m)}</div>
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="datetime-local"
+                            value={formatDateTimeLocal(rule.effective_from)}
+                            onChange={(event) =>
+                              updatePricingRule(index, {
+                                effective_from: parseDateTimeLocal(event.target.value)
+                              })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="input"
+                            type="datetime-local"
+                            value={effectiveToValue}
+                            onChange={(event) =>
+                              updatePricingRule(index, {
+                                effective_to: event.target.value
+                                  ? parseDateTimeLocal(event.target.value)
+                                  : null
+                              })
+                            }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      ) : (
+        <>
+          <header className="hero">
+            <div className="hero-copy">
+              <div className="brand">
+                <div className="brand-mark" aria-hidden="true">
+                  <CodexTrackerLogo />
+                </div>
+                <div className="brand-text">
+                  <h1 className="brand-name">
+                    Codex <span>Tracker</span>
+                  </h1>
+                </div>
+              </div>
+              <p className="brand-tagline">Local usage intelligence for Codex.</p>
+              <p className="subtitle">
+                Monitor tokens, cost, and context pressure across models with fresh ranges and fast
+                exports.
+              </p>
+            </div>
+            <div className="range-panel">
+              <div className="range-panel-header">
+                <label className="label">Range</label>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => setIsSettingsOpen(true)}
+                  aria-label="Open settings"
+                  title="Settings"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path
+                      d="M12 15.6a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z"
+                      fill="currentColor"
+                      opacity="0.9"
+                    />
+                    <path
+                      d="M19.14 12.94a7.8 7.8 0 0 0 0-1.88l2.03-1.58a.9.9 0 0 0 .22-1.16l-1.92-3.32a.9.9 0 0 0-1.1-.4l-2.4.97a7.6 7.6 0 0 0-1.63-.94l-.37-2.55a.9.9 0 0 0-.89-.78H8.9a.9.9 0 0 0-.89.78l-.37 2.55c-.58.23-1.13.54-1.63.94l-2.4-.97a.9.9 0 0 0-1.1.4L.6 8.32a.9.9 0 0 0 .22 1.16l2.03 1.58a7.8 7.8 0 0 0 0 1.88L.82 14.52a.9.9 0 0 0-.22 1.16l1.92 3.32a.9.9 0 0 0 1.1.4l2.4-.97c.5.4 1.05.71 1.63.94l.37 2.55a.9.9 0 0 0 .89.78h4.2a.9.9 0 0 0 .89-.78l.37-2.55c.58-.23 1.13-.54 1.63-.94l2.4.97a.9.9 0 0 0 1.1-.4l1.92-3.32a.9.9 0 0 0-.22-1.16l-2.03-1.58Z"
+                      fill="currentColor"
+                      opacity="0.55"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <select
+                className="select-native select-compact"
+                value={range}
+                onChange={(event) => setRange(event.target.value as RangeValue)}
+              >
+                {RANGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {range === "custom" && (
+                <div className="custom-range custom-range-compact">
+                  <input
+                    type="datetime-local"
+                    value={customStart}
+                    onChange={(event) => setCustomStart(event.target.value)}
+                  />
+                  <input
+                    type="datetime-local"
+                    value={customEnd}
+                    onChange={(event) => setCustomEnd(event.target.value)}
+                  />
+                </div>
+              )}
+              <button className="button" onClick={handleIngest} disabled={isRefreshing}>
+                <span className="button-content">
+                  {isRefreshing && <span className="spinner" aria-hidden="true" />}
+                  <span>Refresh</span>
+                </span>
+              </button>
+              <div className="ingest-stats">
+                <span>
+                  {ingestStats
+                    ? `Last scan: ${formatNumber(ingestStats.files_scanned)} files · Inserted ${formatNumber(
+                        ingestStats.events_inserted
+                      )} events`
+                    : "Last scan: —"}
+                </span>
+              </div>
+              <div className="row">
+                <label className="label">Export</label>
+                <select
+                  className="select-native select-compact"
+                  value={exportMenuValue}
+                  onChange={handleExportMenu}
+                >
+                  <option value="" disabled>
+                    Choose format
+                  </option>
+                  <option value="json">Export JSON</option>
+                  <option value="csv">Export CSV</option>
+                </select>
+              </div>
+              <div className="row">
+                <label className="label">Auto refresh</label>
+                <select
+                  className="select-native select-compact"
+                  value={autoRefresh}
+                  onChange={(event) => setAutoRefresh(event.target.value as AutoRefreshValue)}
+                >
+                  {AUTO_REFRESH_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {error && <p className="error">{error}</p>}
+            </div>
+          </header>
 
       <section className="grid summary-grid">
         <div className="card">
@@ -1555,338 +1833,7 @@ export default function App() {
         </div>
       </section>
 
-      {isSettingsOpen && (
-        <div
-          className="modal-overlay"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setIsSettingsOpen(false);
-            }
-          }}
-        >
-          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-            <div className="modal-header">
-              <div>
-                <h2 id="settings-title" className="modal-title">
-                  Settings
-                </h2>
-                <p className="modal-subtitle">Codex homes, active window, and pricing rules.</p>
-              </div>
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                aria-label="Close settings"
-                title="Close"
-              >
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                  <path
-                    d="M18.3 5.7a1 1 0 0 0-1.4 0L12 10.6 7.1 5.7a1 1 0 0 0-1.4 1.4l4.9 4.9-4.9 4.9a1 1 0 0 0 1.4 1.4l4.9-4.9 4.9 4.9a1 1 0 0 0 1.4-1.4l-4.9-4.9 4.9-4.9a1 1 0 0 0 0-1.4Z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <section className="grid settings-grid settings-grid-modal">
-                <div className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <h2>Codex Homes</h2>
-                      <p>Switch between tracked log directories.</p>
-                    </div>
-                    <button className="button ghost" onClick={refreshHomes}>
-                      Reload
-                    </button>
-                  </div>
-                  <label className="label">Active Home</label>
-                  <select
-                    className="select-native"
-                    value={activeHomeId ?? ""}
-                    onChange={(event) => {
-                      if (!event.target.value) {
-                        return;
-                      }
-                      handleSetActiveHome(Number(event.target.value));
-                    }}
-                  >
-                    {homes.length === 0 && (
-                      <option value="" disabled>
-                        No homes found
-                      </option>
-                    )}
-                    {homes.map((home) => (
-                      <option key={home.id} value={home.id}>
-                        {home.label || home.path}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="note">
-                    {activeHome ? `Path: ${activeHome.path}` : "Select a home to see details."}
-                  </div>
-                  {homes.length > 0 && (
-                    <div className="table-wrap">
-                      <table className="compact-table">
-                        <thead>
-                          <tr>
-                            <th>Label</th>
-                            <th>Path</th>
-                            <th>Last Seen</th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {homes.map((home) => (
-                            <tr key={home.id}>
-                              <td>{home.label}</td>
-                              <td>{home.path}</td>
-                              <td>
-                                {home.last_seen_at
-                                  ? new Date(home.last_seen_at).toLocaleString()
-                                  : "-"}
-                              </td>
-                              <td>
-                                <button
-                                  className="button ghost small"
-                                  onClick={() => handleDeleteHome(home.id)}
-                                  disabled={homes.length === 1}
-                                >
-                                  Delete
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                  <div className="row">
-                    <button
-                      className="button danger"
-                      onClick={handleDeleteData}
-                      disabled={!activeHomeId}
-                    >
-                      Delete Ingested Data
-                    </button>
-                  </div>
-                  <label className="label">Add Home</label>
-                  <input
-                    className="input"
-                    value={newHomePath}
-                    onChange={(event) => setNewHomePath(event.target.value)}
-                    placeholder="/Users/you/.codex"
-                  />
-                  <input
-                    className="input"
-                    value={newHomeLabel}
-                    onChange={(event) => setNewHomeLabel(event.target.value)}
-                    placeholder="Label (optional)"
-                  />
-                  <div className="row">
-                    <button className="button" onClick={handleAddHome}>
-                      Add Home
-                    </button>
-                    <span className="status">{homeStatus}</span>
-                  </div>
-                </div>
-
-                <div className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <h2>Active Window</h2>
-                      <p>Control what counts as active sessions.</p>
-                    </div>
-                  </div>
-                  <label className="label">Active Session Window (Minutes)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min="1"
-                    value={activeMinutesInput}
-                    onChange={(event) => setActiveMinutesInput(event.target.value)}
-                  />
-                  <div className="row">
-                    <button className="button" onClick={handleSaveActiveMinutes}>
-                      Save Window
-                    </button>
-                    <span className="status">{settingsStatus}</span>
-                  </div>
-                  <div className="note">Updates the Active Sessions panel and refresh cycle.</div>
-                </div>
-
-                <div className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <h2>Storage</h2>
-                      <p>Local app data paths for the desktop client.</p>
-                    </div>
-                  </div>
-                  <div className="settings-kv">
-                    <div className="settings-kv-row">
-                      <span className="settings-kv-key">App Data</span>
-                      <span className="settings-kv-value">
-                        {storageInfo?.appDataDir ?? "—"}
-                      </span>
-                    </div>
-                    <div className="settings-kv-row">
-                      <span className="settings-kv-key">Database</span>
-                      <span className="settings-kv-value">{storageInfo?.dbPath ?? "—"}</span>
-                    </div>
-                    <div className="settings-kv-row">
-                      <span className="settings-kv-key">Pricing</span>
-                      <span className="settings-kv-value">
-                        {storageInfo?.pricingDefaultsPath ?? "—"}
-                      </span>
-                    </div>
-                    {storageInfo?.legacyBackupDir && (
-                      <div className="settings-kv-row">
-                        <span className="settings-kv-key">Legacy Backup</span>
-                        <span className="settings-kv-value">
-                          {storageInfo.legacyBackupDir}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="note">
-                    Desktop builds keep data in the OS app data directory.
-                  </div>
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-header">
-                  <div>
-                    <h2>Pricing Rules</h2>
-                    <p>Override model pricing and recompute stored costs.</p>
-                  </div>
-                  <div className="row">
-                    <button className="button ghost" onClick={addPricingRule}>
-                      Add Rule
-                    </button>
-                    <button className="button" onClick={handleSavePricing}>
-                      Save Pricing
-                    </button>
-                    <button className="button ghost" onClick={handleRecomputeCosts}>
-                      Recompute Costs
-                    </button>
-                    <span className="status">{pricingStatus}</span>
-                  </div>
-                </div>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Model Pattern</th>
-                        <th>Input / 1M</th>
-                        <th>Cached / 1M</th>
-                        <th>Output / 1M</th>
-                        <th>Effective From</th>
-                        <th>Effective To</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pricingRules.map((rule, index) => {
-                        const effectiveToValue = formatDateTimeLocal(rule.effective_to);
-                        return (
-                          <tr key={rule.id ?? `${rule.model_pattern}-${index}`}>
-                            <td>
-                              <input
-                                className="input"
-                                value={rule.model_pattern}
-                                onChange={(event) =>
-                                  updatePricingRule(index, { model_pattern: event.target.value })
-                                }
-                              />
-                            </td>
-                            <td>
-                              <input
-                                className="input"
-                                type="number"
-                                step="0.0001"
-                                value={rule.input_per_1m}
-                                onChange={(event) =>
-                                  updatePricingRule(index, {
-                                    input_per_1m: Number(event.target.value)
-                                  })
-                                }
-                              />
-                              <div className="input-hint">{formatCurrency(rule.input_per_1m)}</div>
-                            </td>
-                            <td>
-                              <input
-                                className="input"
-                                type="number"
-                                step="0.0001"
-                                value={rule.cached_input_per_1m}
-                                onChange={(event) =>
-                                  updatePricingRule(index, {
-                                    cached_input_per_1m: Number(event.target.value)
-                                  })
-                                }
-                              />
-                              <div className="input-hint">
-                                {formatCurrency(rule.cached_input_per_1m)}
-                              </div>
-                            </td>
-                            <td>
-                              <input
-                                className="input"
-                                type="number"
-                                step="0.0001"
-                                value={rule.output_per_1m}
-                                onChange={(event) =>
-                                  updatePricingRule(index, {
-                                    output_per_1m: Number(event.target.value)
-                                  })
-                                }
-                              />
-                              <div className="input-hint">
-                                {formatCurrency(rule.output_per_1m)}
-                              </div>
-                            </td>
-                            <td>
-                              <input
-                                className="input"
-                                type="datetime-local"
-                                value={formatDateTimeLocal(rule.effective_from)}
-                                onChange={(event) =>
-                                  updatePricingRule(index, {
-                                    effective_from: parseDateTimeLocal(event.target.value)
-                                  })
-                                }
-                              />
-                            </td>
-                            <td>
-                              <div className="input-wrap">
-                                <input
-                                  className={`input ${effectiveToValue ? "" : "input-empty"}`}
-                                  type="datetime-local"
-                                  value={effectiveToValue}
-                                  onChange={(event) =>
-                                    updatePricingRule(index, {
-                                      effective_to: event.target.value.length
-                                        ? parseDateTimeLocal(event.target.value)
-                                        : null
-                                    })
-                                  }
-                                />
-                                {!effectiveToValue && (
-                                  <span className="input-overlay">Open-ended</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
