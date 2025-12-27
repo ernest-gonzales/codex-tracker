@@ -376,7 +376,7 @@ function downloadFile(name: string, contents: string, type: string) {
 }
 
 export default function App() {
-  const [range, setRange] = useState<RangeValue>("last7days");
+  const [range, setRange] = useState<RangeValue>("today");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -409,7 +409,7 @@ export default function App() {
   const [costBreakdownPage, setCostBreakdownPage] = useState<number>(1);
   const [costSeriesPage, setCostSeriesPage] = useState<number>(1);
   const [eventsPage, setEventsPage] = useState<number>(1);
-  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("off");
+  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("30s");
   const [chartBucketMode, setChartBucketMode] = useState<ChartBucketMode>("day");
   const [exportMenuValue, setExportMenuValue] = useState<string>("");
   const ingestInFlight = useRef<boolean>(false);
