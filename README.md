@@ -73,6 +73,8 @@ Single command (build UI + run desktop app):
 ./scripts/run-desktop.sh
 ```
 
+Note: the desktop app loads the built UI from `apps/web/dist` (no dev server).
+
 ## Configuration and data locations
 
 ### Codex log source (“Codex home”)

@@ -17,9 +17,7 @@
   },
   "build": {
     "frontendDist": "../../web/dist",
-    "beforeDevCommand": "cd ../web && npm run dev -- --port 5175",
-    "beforeBuildCommand": "cd ../web && npm run build",
-    "devUrl": "http://localhost:5175"
+    "beforeBuildCommand": "cd ../web && npm run build"
   },
   "bundle": {
     "active": true,
