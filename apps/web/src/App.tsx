@@ -415,7 +415,6 @@ export default function App() {
   const [eventsPage, setEventsPage] = useState<number>(1);
   const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("30s");
   const [chartBucketMode, setChartBucketMode] = useState<ChartBucketMode>("hour");
-  const [exportMenuValue, setExportMenuValue] = useState<string>("");
   const ingestInFlight = useRef<boolean>(false);
   const [costBreakdownTab, setCostBreakdownTab] = useState<"model" | "day">("model");
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
@@ -1050,59 +1049,6 @@ export default function App() {
     setPricingDirty(true);
   }
 
-  function exportJson() {
-    const payload = {
-      summary,
-      breakdown,
-      effort_breakdown: effortBreakdown,
-      events
-    };
-    downloadFile("codex-tracker-export.json", JSON.stringify(payload, null, 2), "application/json");
-  }
-
-  function exportCsv() {
-    const header = [
-      "ts",
-      "model",
-      "input_tokens",
-      "cached_input_tokens",
-      "output_tokens",
-      "reasoning_output_tokens",
-      "total_tokens",
-      "cost_usd",
-      "reasoning_effort",
-      "source"
-    ];
-    const rows = events.map((event) => [
-      event.ts,
-      event.model,
-      event.usage.input_tokens.toString(),
-      event.usage.cached_input_tokens.toString(),
-      event.usage.output_tokens.toString(),
-      event.usage.reasoning_output_tokens.toString(),
-      event.usage.total_tokens.toString(),
-      event.cost_usd?.toString() ?? "",
-      event.reasoning_effort ?? "",
-      event.source
-    ]);
-    const csv = [header, ...rows]
-      .map((row) => row.map(csvEscape).join(","))
-      .join("\n");
-    downloadFile("codex-tracker-events.csv", csv, "text/csv");
-  }
-
-  function handleExportMenu(value: string) {
-    if (!value) {
-      return;
-    }
-    if (value === "json") {
-      exportJson();
-    } else {
-      exportCsv();
-    }
-    setExportMenuValue("");
-  }
-
   return (
     <div className="app density-compact">
       <div className="glow" aria-hidden="true" />
@@ -1576,7 +1522,7 @@ export default function App() {
               <p className="brand-tagline">Local usage intelligence for Codex.</p>
               <p className="subtitle">
                 Monitor tokens, cost, and context pressure across models with fresh ranges and fast
-                exports.
+                refreshes.
               </p>
             </div>
             <div className="range-panel">
@@ -1638,23 +1584,6 @@ export default function App() {
                       )} events`
                     : "Last scan: —"}
                 </span>
-              </div>
-              <div className="row">
-                <label className="label">Export</label>
-                <SelectField
-                  value={exportMenuValue || undefined}
-                  onValueChange={(value) => {
-                    setExportMenuValue(value);
-                    handleExportMenu(value);
-                  }}
-                  options={[
-                    { value: "json", label: "Export JSON" },
-                    { value: "csv", label: "Export CSV" }
-                  ]}
-                  placeholder="Choose format"
-                  size="compact"
-                  ariaLabel="Export format"
-                />
               </div>
               <div className="row">
                 <label className="label">Auto refresh</label>
