@@ -20,9 +20,9 @@ bundled as a Tauri desktop app. Everything runs on-device and stores data in a l
   - `crates/ingest/` (`ingest`): discovers Codex logs under the configured Codex home and ingests them incrementally.
   - `crates/db/` (`tracker_db`): SQLite schema/migrations + query layer.
   - `crates/core/` (`tracker_core`): shared types and helpers (ranges, bucketing, pricing math).
-- Web UI:
+- UI bundle (desktop-only):
   - `apps/web/`: React + TypeScript + Vite, Tailwind CSS, and Recharts.
-  - Built assets live in `apps/web/dist` and are loaded by the desktop shell.
+  - Built assets live in `apps/web/dist` and are loaded by the Tauri shell (no web deployment).
 - Desktop app:
   - `apps/desktop/src-tauri`: Tauri shell + IPC commands that host the React UI and call the Rust backend.
 
@@ -33,7 +33,7 @@ Requirements:
 - Rust stable (this repo uses Rust 2024 edition; use a recent stable toolchain).
 - Node.js + npm (recommended: current LTS).
 
-Build the frontend once:
+Build the UI bundle once:
 
 ```bash
 cd apps/web
@@ -53,7 +53,7 @@ Single command (build UI + run desktop app):
 ./scripts/run-desktop.sh
 ```
 
-Note: the desktop app loads the built UI from `apps/web/dist` (no dev server).
+Note: the desktop app loads the built UI from `apps/web/dist` (no web server).
 
 ### Desktop tips
 
@@ -81,6 +81,13 @@ surfaced in the Settings modal under Storage.
 
 ```bash
 cargo test
+```
+
+UI unit tests:
+
+```bash
+cd apps/web
+npm test
 ```
 
 ## License
