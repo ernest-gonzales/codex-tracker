@@ -111,8 +111,9 @@ jobs:
           VERSION="${VERSION#v}"
           NOTES_PATH="${RUNNER_TEMP}/release-notes.md"
           awk -v ver="${VERSION}" '
-            $0 ~ "^## \\[" ver "\\]" {print; in_section=1; next}
-            in_section && /^## \\[/ {exit}
+            BEGIN { header = "## [" ver "]" }
+            index($0, header) == 1 {print; in_section=1; next}
+            in_section && index($0, "## [") == 1 {exit}
             in_section {print}
           ' CHANGELOG.md > "${NOTES_PATH}"
 
