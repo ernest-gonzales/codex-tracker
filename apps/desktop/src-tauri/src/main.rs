@@ -530,9 +530,12 @@ pub fn run() {
             if let Err(err) = app_state.sync_pricing_defaults() {
                 eprintln!("failed to sync pricing defaults: {}", err);
             }
-            if let Err(err) = app_state.refresh_data() {
-                eprintln!("failed to refresh data on startup: {}", err);
-            }
+            let refresh_state = app_state.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(err) = refresh_state.refresh_data() {
+                    eprintln!("failed to refresh data on startup: {}", err);
+                }
+            });
             app.manage(DesktopState {
                 app_state,
                 app_data_dir,
