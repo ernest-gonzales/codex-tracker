@@ -98,3 +98,8 @@ Open the DMG and drag **Codex Tracker** to Applications.
 brew tap ernest-gonzales/homebrew-tap
 brew install --cask codex-tracker
 ```
+
+### Gatekeeper note
+
+Because releases are **not notarized** (yet), macOS Gatekeeper will likely show a warning on first launch.
+This is expected for unsigned distribution.

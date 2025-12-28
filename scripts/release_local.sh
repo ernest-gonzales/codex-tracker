@@ -9,9 +9,6 @@ Usage: scripts/release_local.sh <version>
 
 Bumps versions in:
   - apps/desktop/src-tauri/Cargo.toml
-  - apps/desktop/src-tauri/tauri.conf.json
-  - apps/web/package.json
-  - apps/web/package-lock.json
   - CHANGELOG.md (moves [Unreleased] into a new release section)
 
 Then builds:
@@ -47,37 +44,6 @@ RELEASE_DATE="$(date +%F)"
 update_cargo_toml_version() {
   local file="$1"
   perl -0777 -pi -e 's/(\[package\][\s\S]*?^version\s*=\s*")([^"]*)(")/$1$ENV{RELEASE_VERSION}$3/m or die "Failed to update version in $ARGV\n";' "${file}"
-}
-
-update_json_version() {
-  local file="$1"
-  perl -0777 -pi -e '
-    my $v = $ENV{RELEASE_VERSION};
-    my $n = s/"version"\s*:\s*"[^"]*"/"version": "$v"/;
-    die "Failed to update version in $ARGV\n" unless $n;
-  ' "${file}"
-}
-
-update_package_lock_version() {
-  local file="$1"
-  perl -0777 -pi -e '
-    my $v = $ENV{RELEASE_VERSION};
-    my $idx = index($_, "\"packages\"");
-
-    if ($idx >= 0) {
-      my $head = substr($_, 0, $idx);
-      my $tail = substr($_, $idx);
-      my $n = ($head =~ s/("version"\s*:\s*")([^"]*)(")/$1$v$3/);
-      die "Failed to update package-lock top-level version in $ARGV\n" unless $n;
-      $_ = $head . $tail;
-    } else {
-      my $n = s/\A([\s\S]*?)("version"\s*:\s*")([^"]*)(")/$1$2$v$4/s;
-      die "Failed to update package-lock top-level version in $ARGV\n" unless $n;
-    }
-
-    my $m = s/("packages"\s*:\s*{\s*""\s*:\s*{\s*"name"\s*:\s*"[^"]*"\s*,\s*"version"\s*:\s*")([^"]*)(")/$1$v$3/s;
-    die "Failed to update package-lock packages[\"\"] version in $ARGV\n" unless $m;
-  ' "${file}"
 }
 
 update_changelog() {
@@ -128,9 +94,6 @@ export RELEASE_VERSION="${VERSION}"
 export RELEASE_DATE
 
 update_cargo_toml_version "${ROOT_DIR}/apps/desktop/src-tauri/Cargo.toml"
-update_json_version "${ROOT_DIR}/apps/desktop/src-tauri/tauri.conf.json"
-update_json_version "${ROOT_DIR}/apps/web/package.json"
-update_package_lock_version "${ROOT_DIR}/apps/web/package-lock.json"
 update_changelog "${ROOT_DIR}/CHANGELOG.md"
 
 echo "Version bumped to ${VERSION} (${RELEASE_DATE})."
