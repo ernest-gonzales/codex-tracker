@@ -74,8 +74,10 @@ update_package_lock_version() {
       my $n = s/\A([\s\S]*?)("version"\s*:\s*")([^"]*)(")/$1$2$v$4/s;
       die "Failed to update package-lock top-level version in $ARGV\n" unless $n;
     }
+
+    my $m = s/("packages"\s*:\s*{\s*""\s*:\s*{\s*"name"\s*:\s*"[^"]*"\s*,\s*"version"\s*:\s*")([^"]*)(")/$1$v$3/s;
+    die "Failed to update package-lock packages[\"\"] version in $ARGV\n" unless $m;
   ' "${file}"
-  perl -0777 -pi -e 's/("packages"\s*:\s*{\s*""\s*:\s*{\s*"name"\s*:\s*"[^"]*"\s*,\s*"version"\s*:\s*")([^"]*)(")/$1$ENV{RELEASE_VERSION}$3/s or die "Failed to update package-lock packages[\\"\\"] version in $ARGV\n";' "${file}"
 }
 
 update_changelog() {
