@@ -745,8 +745,13 @@ export default function App() {
     if (!limitWindows.length) {
       return [];
     }
+    const ordered = [...limitWindows].sort((a, b) => {
+      const aEnd = new Date(a.window_end).getTime();
+      const bEnd = new Date(b.window_end).getTime();
+      return aEnd - bEnd;
+    });
     let previous: UsageLimitWindow | null = null;
-    return limitWindows.map((window) => {
+    const withDelta = ordered.map((window) => {
       let delta: number | null = null;
       if (
         window.complete &&
@@ -764,6 +769,7 @@ export default function App() {
       }
       return { ...window, delta };
     });
+    return withDelta.reverse();
   }, [limitWindows]);
   const pagedEvents = useMemo(() => {
     const startIndex = (eventsPage - 1) * EVENTS_PER_PAGE;
@@ -1306,7 +1312,7 @@ export default function App() {
                 <div className="panel-header">
                   <div>
                     <h2>Storage</h2>
-                    <p>Local app data paths for the desktop client.</p>
+                    <p>Local app data directory for the desktop client.</p>
                   </div>
                 </div>
                 <div className="settings-kv">
@@ -1334,83 +1340,9 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                  <div className="settings-kv-row">
-                    <span className="settings-kv-key">Database</span>
-                    <div className="settings-kv-value">
-                      <span className="mono">{storageInfo?.dbPath ?? "—"}</span>
-                      <div className="kv-actions">
-                        <button
-                          className="button ghost small"
-                          type="button"
-                          onClick={() => handleCopyPath(storageInfo?.dbPath)}
-                          disabled={!storageInfo?.dbPath}
-                        >
-                          Copy
-                        </button>
-                        <button
-                          className="button ghost small"
-                          type="button"
-                          onClick={() => handleRevealPath(storageInfo?.dbPath, false)}
-                          disabled={!storageInfo?.dbPath || !isTauriRuntime}
-                        >
-                          Reveal
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="settings-kv-row">
-                    <span className="settings-kv-key">Pricing</span>
-                    <div className="settings-kv-value">
-                      <span className="mono">{storageInfo?.pricingDefaultsPath ?? "—"}</span>
-                      <div className="kv-actions">
-                        <button
-                          className="button ghost small"
-                          type="button"
-                          onClick={() => handleCopyPath(storageInfo?.pricingDefaultsPath)}
-                          disabled={!storageInfo?.pricingDefaultsPath}
-                        >
-                          Copy
-                        </button>
-                        <button
-                          className="button ghost small"
-                          type="button"
-                          onClick={() => handleRevealPath(storageInfo?.pricingDefaultsPath, false)}
-                          disabled={!storageInfo?.pricingDefaultsPath || !isTauriRuntime}
-                        >
-                          Reveal
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  {storageInfo?.legacyBackupDir && (
-                    <div className="settings-kv-row">
-                      <span className="settings-kv-key">Legacy Backup</span>
-                      <div className="settings-kv-value">
-                        <span className="mono">{storageInfo.legacyBackupDir}</span>
-                        <div className="kv-actions">
-                          <button
-                            className="button ghost small"
-                            type="button"
-                            onClick={() => handleCopyPath(storageInfo?.legacyBackupDir ?? "")}
-                            disabled={!storageInfo?.legacyBackupDir}
-                          >
-                            Copy
-                          </button>
-                          <button
-                            className="button ghost small"
-                            type="button"
-                            onClick={() => handleRevealPath(storageInfo?.legacyBackupDir ?? "", true)}
-                            disabled={!storageInfo?.legacyBackupDir || !isTauriRuntime}
-                          >
-                            Reveal
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
                 <div className="note">
-                  Desktop builds keep data in the OS app data directory.
+                  Desktop builds keep all data in this directory.
                 </div>
               </section>
 
