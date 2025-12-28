@@ -8,3 +8,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>
 );
+
+const bootScreen = document.getElementById("boot-screen");
+if (bootScreen) {
+  window.requestAnimationFrame(() => {
+    bootScreen.classList.add("is-hidden");
+    window.setTimeout(() => bootScreen.remove(), 500);
+  });
+}
