@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [0.2.0] - 2025-12-28
+
+### Added
+
 - Introduced a Tauri desktop app shell with local API handlers for analytics, ingest, settings, pricing, limits, and logs.
 - Built new dashboard and settings UI modules with charts, panels, modals, and keyboard-driven interactions.
 - Added macOS release workflows, release docs, and scripts for desktop build/run.
