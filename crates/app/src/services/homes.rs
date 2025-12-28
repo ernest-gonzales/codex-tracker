@@ -1,5 +1,5 @@
 use crate::error::{AppError, Result};
-use crate::services::{missing_home, open_db, require_active_home, SharedConfig};
+use crate::services::{SharedConfig, missing_home, open_db, require_active_home};
 use tracker_core::CodexHome;
 use tracker_db::Db;
 

@@ -1,6 +1,6 @@
 use tempfile::tempdir;
 use tracker_app::AppState;
-use tracker_core::{session_id_from_source, ContextStatus, TimeRange, UsageEvent, UsageTotals};
+use tracker_core::{ContextStatus, TimeRange, UsageEvent, UsageTotals, session_id_from_source};
 
 #[test]
 fn summary_service_smoke() {

@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::pricing;
-use crate::services::{open_db, require_active_home, SharedConfig};
+use crate::services::{SharedConfig, open_db, require_active_home};
 use tracker_core::PricingRuleInput;
 use tracker_db::Db;
 

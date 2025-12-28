@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::services::{open_db, require_active_home, SharedConfig};
+use crate::services::{SharedConfig, open_db, require_active_home};
 use tracker_core::{UsageLimitCurrentResponse, UsageLimitSnapshot, UsageLimitWindow};
 use tracker_db::Db;
 

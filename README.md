@@ -58,7 +58,7 @@ use Finder to open it once (Control-click → Open) and the warning should not r
 
 Requirements:
 
-- Rust stable 1.85+ (workspace uses a mix of Rust 2021 and Rust 2024 editions).
+- Rust stable 1.85+ (Rust 2024 edition workspace).
 - Node.js + npm (recommended: current LTS).
   - macOS: Xcode Command Line Tools are required for Tauri builds.
   - Linux: Tauri depends on `webkit2gtk` and related system packages.

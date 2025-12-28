@@ -2,7 +2,7 @@
 name = "codex_tracker"
 version = "0.1.0"
 description = "Codex Tracker"
-edition = "2021"
+edition = "2024"
 
 [build-dependencies]
 tauri-build = { version = "2.5.1", features = [] }

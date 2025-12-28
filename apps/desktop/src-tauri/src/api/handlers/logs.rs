@@ -2,7 +2,7 @@ use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::api::to_error;
-use crate::app::{expand_home_path, DesktopState};
+use crate::app::{DesktopState, expand_home_path};
 
 #[tauri::command]
 pub fn open_logs_dir(app: AppHandle, state: State<DesktopState>) -> Result<(), String> {

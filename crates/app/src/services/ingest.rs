@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::error::Result;
-use crate::services::{open_db, require_active_home, SharedConfig};
+use crate::services::{SharedConfig, open_db, require_active_home};
 use ingest::IngestStats;
 use tracker_db::Db;
 

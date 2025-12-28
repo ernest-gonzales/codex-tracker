@@ -31,10 +31,8 @@ pub fn initialize(app: &tauri::App) -> Result<DesktopState, Box<dyn std::error::
     if let Err(err) = app_state.setup_db() {
         return Err(boxed_err(format!("failed to initialize database: {}", err)));
     }
-    if is_fresh_db {
-        if let Err(err) = app_state.apply_pricing_defaults() {
-            eprintln!("failed to apply pricing defaults: {}", err);
-        }
+    if is_fresh_db && let Err(err) = app_state.apply_pricing_defaults() {
+        eprintln!("failed to apply pricing defaults: {}", err);
     }
     if let Err(err) = app_state.sync_pricing_defaults() {
         eprintln!("failed to sync pricing defaults: {}", err);
