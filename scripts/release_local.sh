@@ -51,12 +51,30 @@ update_cargo_toml_version() {
 
 update_json_version() {
   local file="$1"
-  perl -pi -e 's/"version"\s*:\s*"[^"]*"/"version": "'"${VERSION}"'"/ or die "Failed to update version in $ARGV\n";' "${file}"
+  perl -0777 -pi -e '
+    my $v = $ENV{RELEASE_VERSION};
+    my $n = s/"version"\s*:\s*"[^"]*"/"version": "$v"/;
+    die "Failed to update version in $ARGV\n" unless $n;
+  ' "${file}"
 }
 
 update_package_lock_version() {
   local file="$1"
-  perl -pi -e 's/"version"\s*:\s*"[^"]*"/"version": "'"${VERSION}"'"/ or die "Failed to update package-lock version in $ARGV\n";' "${file}"
+  perl -0777 -pi -e '
+    my $v = $ENV{RELEASE_VERSION};
+    my $idx = index($_, "\"packages\"");
+
+    if ($idx >= 0) {
+      my $head = substr($_, 0, $idx);
+      my $tail = substr($_, $idx);
+      my $n = ($head =~ s/("version"\s*:\s*")([^"]*)(")/$1$v$3/);
+      die "Failed to update package-lock top-level version in $ARGV\n" unless $n;
+      $_ = $head . $tail;
+    } else {
+      my $n = s/\A([\s\S]*?)("version"\s*:\s*")([^"]*)(")/$1$2$v$4/s;
+      die "Failed to update package-lock top-level version in $ARGV\n" unless $n;
+    }
+  ' "${file}"
   perl -0777 -pi -e 's/("packages"\s*:\s*{\s*""\s*:\s*{\s*"name"\s*:\s*"[^"]*"\s*,\s*"version"\s*:\s*")([^"]*)(")/$1$ENV{RELEASE_VERSION}$3/s or die "Failed to update package-lock packages[\\"\\"] version in $ARGV\n";' "${file}"
 }
 
