@@ -207,6 +207,17 @@ export function DashboardPage({
     return () => window.clearInterval(intervalId);
   }, [autoRefreshInterval, ingest]);
 
+  const handleOpenLogs = useCallback(async () => {
+    try {
+      await openLogsDir();
+    } catch (err) {
+      onToast?.({
+        message: err instanceof Error ? err.message : "Open logs failed",
+        tone: "error"
+      });
+    }
+  }, [onToast]);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented) {
@@ -242,17 +253,6 @@ export function DashboardPage({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleOpenLogs, ingest, onOpenSettings, selectedSession]);
-
-  const handleOpenLogs = useCallback(async () => {
-    try {
-      await openLogsDir();
-    } catch (err) {
-      onToast?.({
-        message: err instanceof Error ? err.message : "Open logs failed",
-        tone: "error"
-      });
-    }
-  }, [onToast]);
 
   function handleCustomStartChange(event: ChangeEvent<HTMLInputElement>) {
     const value = event.target.value;
