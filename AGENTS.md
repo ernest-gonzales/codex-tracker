@@ -47,6 +47,7 @@
 
 - Use `cargo fmt` and `cargo clippy` when relevant
 - Treat warnings as errors; ensure `cargo clippy --workspace --all-targets -- -D warnings` is clean before committing
+- If IDE diagnostics disagree, reproduce with `cargo check -p <crate> --tests` (or `cargo clippy -p <crate> --tests -- -D warnings`) and restart rust-analyzer before assuming the warning is real.
 - After Rust changes, run `cargo check` for the affected crate(s) (use `-p codex_tracker_desktop` when touching the desktop app) to catch compile errors before committing.
 - Prefer explicit error handling (`thiserror`, `anyhow`)
 - SQLite migrations must be idempotent
