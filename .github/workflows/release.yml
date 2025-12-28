@@ -56,7 +56,8 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           VERSION="${VERSION#v}"
-          BUNDLE_DIR="apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          TARGET_DIR="$(cargo metadata --manifest-path apps/desktop/src-tauri/Cargo.toml --format-version 1 --no-deps | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
+          BUNDLE_DIR="${TARGET_DIR}/${{ matrix.target }}/release/bundle"
           APP_PATH="$(find "${BUNDLE_DIR}" -type d -name "*.app" -print -quit)"
           DMG_PATH="$(find "${BUNDLE_DIR}" -type f -name "*.dmg" -print -quit)"
 
