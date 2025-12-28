@@ -985,7 +985,6 @@ export default function App() {
     const withDelta = ordered.map((window) => {
       let delta: number | null = null;
       if (
-        window.complete &&
         previous?.total_tokens !== null &&
         previous?.total_tokens !== undefined &&
         window.total_tokens !== null &&
@@ -995,7 +994,7 @@ export default function App() {
         delta =
           ((window.total_tokens - previous.total_tokens) / previous.total_tokens) * 100;
       }
-      if (window.complete) {
+      if (window.total_tokens !== null && window.total_tokens !== undefined) {
         previous = window;
       }
       return { ...window, delta };

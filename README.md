@@ -44,7 +44,7 @@ npm run build
 Run the desktop app:
 
 ```bash
-cargo run -p codex_tracker_desktop
+cargo run -p codex_tracker
 ```
 
 Single command (build UI + run desktop app):

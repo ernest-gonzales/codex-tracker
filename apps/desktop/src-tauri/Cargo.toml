@@ -1,7 +1,7 @@
 [package]
-name = "codex_tracker_desktop"
+name = "codex_tracker"
 version = "0.1.0"
-description = "Codex Tracker desktop app"
+description = "Codex Tracker"
 edition = "2021"
 
 [build-dependencies]
