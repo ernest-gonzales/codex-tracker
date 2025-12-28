@@ -728,6 +728,23 @@ export default function App() {
     (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
       Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__));
 
+  const activeHome = useMemo(() => {
+    if (activeHomeId === null) {
+      return null;
+    }
+    return homes.find((home) => home.id === activeHomeId) ?? null;
+  }, [homes, activeHomeId]);
+
+  const homeSelectOptions = useMemo<SelectOption[]>(() => {
+    if (homes.length === 0) {
+      return [{ value: "none", label: "No homes found", disabled: true }];
+    }
+    return homes.map((home) => ({
+      value: String(home.id),
+      label: home.label || home.path
+    }));
+  }, [homes]);
+
   useEffect(() => {
     if (!autoRefreshInterval) {
       return;
@@ -844,12 +861,6 @@ export default function App() {
     []
   );
 
-  const activeHome = useMemo(() => {
-    if (activeHomeId === null) {
-      return null;
-    }
-    return homes.find((home) => home.id === activeHomeId) ?? null;
-  }, [homes, activeHomeId]);
   const uniformSessionModel = useMemo(() => {
     if (activeSessions.length === 0) {
       return null;
@@ -861,15 +872,6 @@ export default function App() {
     return activeSessions.every((session) => session.model === model) ? model : null;
   }, [activeSessions]);
   const showSessionModel = uniformSessionModel === null;
-  const homeSelectOptions = useMemo<SelectOption[]>(() => {
-    if (homes.length === 0) {
-      return [{ value: "none", label: "No homes found", disabled: true }];
-    }
-    return homes.map((home) => ({
-      value: String(home.id),
-      label: home.label || home.path
-    }));
-  }, [homes]);
 
   const isRefreshing = loading || isIngesting;
   const showSummarySkeleton = loading && !summary;
