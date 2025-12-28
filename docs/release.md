@@ -24,6 +24,8 @@ using macOS artifacts published on GitHub Releases.
 
 Optional local build helper:
 
+The helper bumps versions + updates `CHANGELOG.md`, then runs a local build.
+
 The helper assumes the Tauri CLI is installed:
 
 ```bash
@@ -31,7 +33,7 @@ cargo install tauri-cli --locked --version "^2.0.0"
 ```
 
 ```bash
-bash scripts/release_local.sh
+bash scripts/release_local.sh X.Y.Z
 ```
 
 ## Gatekeeper note
