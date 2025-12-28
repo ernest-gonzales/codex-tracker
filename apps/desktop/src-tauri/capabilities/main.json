@@ -1,5 +1,4 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
   "description": "Desktop window permissions for dialogs, path checks, and reveal actions.",
   "windows": ["main"],
