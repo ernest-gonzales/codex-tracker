@@ -36,7 +36,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --locked --version 2.5.1
+        run: cargo install tauri-cli --locked --version "^2.0.0"
 
       - name: Install web deps
         working-directory: apps/web

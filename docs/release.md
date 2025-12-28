@@ -54,7 +54,7 @@ Optional local build helper:
 The helper assumes the Tauri CLI is installed:
 
 ```bash
-cargo install tauri-cli --locked --version 2.5.1
+cargo install tauri-cli --locked --version "^2.0.0"
 ```
 
 ```bash

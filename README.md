@@ -85,7 +85,7 @@ Note: the desktop app loads the built UI from `apps/web/dist` (no web server).
 ### macOS
 
 ```bash
-cargo install tauri-cli --locked --version 2.5.1
+cargo install tauri-cli --locked --version "^2.0.0"
 
 cd apps/web
 npm ci
@@ -99,7 +99,7 @@ cargo tauri build
 
 1. Install Rust with the MSVC toolchain and Visual Studio Build Tools.
 2. Install Node.js LTS.
-3. Install the Tauri CLI: `cargo install tauri-cli --locked --version 2.5.1`.
+3. Install the Tauri CLI: `cargo install tauri-cli --locked --version "^2.0.0"`.
 4. Run:
    - `npm ci && npm run build` in `apps/web`
    - `cargo tauri build` in `apps/desktop/src-tauri`
@@ -109,7 +109,7 @@ cargo tauri build
 1. Install Rust + Node.js LTS.
 2. Install Tauri system deps (example for Debian/Ubuntu):
    - `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
-3. Install the Tauri CLI: `cargo install tauri-cli --locked --version 2.5.1`.
+3. Install the Tauri CLI: `cargo install tauri-cli --locked --version "^2.0.0"`.
 4. Run:
    - `npm ci && npm run build` in `apps/web`
    - `cargo tauri build` in `apps/desktop/src-tauri`
