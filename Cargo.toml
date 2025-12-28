@@ -4,7 +4,6 @@ members = [
   "crates/core",
   "crates/db",
   "crates/ingest",
-  "crates/server",
   "apps/desktop/src-tauri",
 ]
 resolver = "2"

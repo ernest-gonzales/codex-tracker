@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import {
   Bar,
   BarChart,
@@ -308,16 +309,6 @@ function validatePricingRules(rules: PricingRule[]): PricingIssue[] {
   return issues;
 }
 
-function formatDateTimeLocal(value?: string | null) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  const offset = parsed.getTimezoneOffset() * 60 * 1000;
-  return new Date(parsed.getTime() - offset).toISOString().slice(0, 16);
-}
-
 function formatDateOnlyLocal(value?: string | null) {
   if (!value) return "";
   const parsed = new Date(value);
@@ -328,14 +319,6 @@ function formatDateOnlyLocal(value?: string | null) {
   return new Date(parsed.getTime() - offset).toISOString().slice(0, 10);
 }
 
-function parseDateTimeLocal(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toISOString();
-}
-
 function parseDateOnlyLocal(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -344,11 +327,66 @@ function parseDateOnlyLocal(value: string) {
   return parsed.toISOString();
 }
 
+function parseDateInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.includes("T")) {
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  const parts = trimmed.split("-");
+  if (parts.length === 3) {
+    const [year, month, day] = parts.map((part) => Number(part));
+    if ([year, month, day].every((part) => Number.isFinite(part))) {
+      return new Date(year, month - 1, day);
+    }
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return null;
+}
+
+function formatDateInputValue(value?: string | null) {
+  if (!value) return "";
+  const parsed = parseDateInput(value);
+  if (!parsed) {
+    return value;
+  }
+  const year = String(parsed.getFullYear());
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toRangeStart(value?: string) {
+  if (!value) return undefined;
+  const parsed = parseDateInput(value);
+  if (!parsed) return undefined;
+  const start = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 0, 0, 0, 0);
+  return start.toISOString();
+}
+
+function toRangeEndExclusive(value?: string) {
+  if (!value) return undefined;
+  const parsed = parseDateInput(value);
+  if (!parsed) return undefined;
+  const end = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 0, 0, 0, 0);
+  // Shift to next-day start so the selected end date is treated as inclusive.
+  end.setDate(end.getDate() + 1);
+  return end.toISOString();
+}
+
 function buildRangeParams(range: RangeValue, start?: string, end?: string) {
   if (range === "custom") {
     return {
-      start: start ? new Date(start).toISOString() : undefined,
-      end: end ? new Date(end).toISOString() : undefined
+      start: toRangeStart(start),
+      end: toRangeEndExclusive(end)
     };
   }
   return { range };
@@ -462,6 +500,8 @@ export default function App() {
   const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("30s");
   const [chartBucketMode, setChartBucketMode] = useState<ChartBucketMode>("hour");
   const ingestInFlight = useRef<boolean>(false);
+  const customStartRef = useRef<HTMLInputElement | null>(null);
+  const customEndRef = useRef<HTMLInputElement | null>(null);
   const [costBreakdownTab, setCostBreakdownTab] = useState<"model" | "day">("model");
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; tone?: "error" | "info" } | null>(
@@ -672,11 +712,11 @@ export default function App() {
     }
     const storedStart = safeStorageGet(STORAGE_KEYS.rangeStart);
     if (storedStart) {
-      setCustomStart(storedStart);
+      setCustomStart(formatDateInputValue(storedStart));
     }
     const storedEnd = safeStorageGet(STORAGE_KEYS.rangeEnd);
     if (storedEnd) {
-      setCustomEnd(storedEnd);
+      setCustomEnd(formatDateInputValue(storedEnd));
     }
     const storedTab = safeStorageGet(STORAGE_KEYS.settingsTab);
     if (
@@ -724,11 +764,6 @@ export default function App() {
     return AUTO_REFRESH_OPTIONS.find((option) => option.value === autoRefresh)?.ms ?? 0;
   }, [autoRefresh]);
 
-  const isTauriRuntime =
-    typeof window !== "undefined" &&
-    (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
-      Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__));
-
   const activeHome = useMemo(() => {
     if (activeHomeId === null) {
       return null;
@@ -757,22 +792,26 @@ export default function App() {
   }, [autoRefreshInterval, rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
 
   useEffect(() => {
-    if (!isTauriRuntime) {
-      return;
-    }
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     (async () => {
-      const { listen } = await import("@tauri-apps/api/event");
-      if (cancelled) {
-        return;
-      }
-      unlisten = await listen<IngestStats>("ingest:complete", (event) => {
-        if (event.payload) {
-          setIngestStats(event.payload);
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        if (cancelled) {
+          return;
         }
-        refreshAll();
-      });
+        unlisten = await listen<IngestStats>("ingest:complete", (event) => {
+          if (event.payload) {
+            setIngestStats(event.payload);
+          }
+          refreshAll();
+        });
+      } catch (err) {
+        setToast({
+          message: err instanceof Error ? err.message : "Ingest listener unavailable",
+          tone: "info"
+        });
+      }
     })();
     return () => {
       cancelled = true;
@@ -780,7 +819,7 @@ export default function App() {
         unlisten();
       }
     };
-  }, [isTauriRuntime, rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
+  }, [rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
 
   useEffect(() => {
     if (!isSettingsOpen) {
@@ -838,8 +877,7 @@ export default function App() {
     modelFilter,
     activeMinutes,
     chartBucket,
-    activeHome?.path,
-    isTauriRuntime
+    activeHome?.path
   ]);
 
   const modelOptions = useMemo(() => {
@@ -927,6 +965,11 @@ export default function App() {
     contextSampleCount > 0
       ? "Average context usage and pressure for events with known context in this range."
       : "No context window data in this range yet.";
+  const ingestStatus = ingestStats
+    ? `Last scan: ${formatNumber(ingestStats.files_scanned)} files · +${formatNumber(
+        ingestStats.events_inserted
+      )} events`
+    : "Last scan: —";
   const primaryLimitPercent = clampPercent(limits?.primary?.percent_left ?? 100);
   const secondaryLimitPercent = clampPercent(limits?.secondary?.percent_left ?? 100);
   const limitWindowRows = useMemo(() => {
@@ -985,9 +1028,6 @@ export default function App() {
   }
 
   async function validateHomePath(path: string) {
-    if (!isTauriRuntime) {
-      return true;
-    }
     try {
       const { exists } = await import("@tauri-apps/plugin-fs");
       return await exists(path);
@@ -1001,10 +1041,6 @@ export default function App() {
   }
 
   async function handlePickHomePath() {
-    if (!isTauriRuntime) {
-      setHomeStatus("Path picker available in the desktop app only");
-      return;
-    }
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({ directory: true, multiple: false });
@@ -1176,10 +1212,6 @@ export default function App() {
     if (!value) {
       return;
     }
-    if (!isTauriRuntime) {
-      setToast({ message: "Reveal is available in the desktop app", tone: "info" });
-      return;
-    }
     try {
       if (isDir) {
         const { openPath } = await import("@tauri-apps/plugin-opener");
@@ -1197,14 +1229,33 @@ export default function App() {
   }
 
   async function handleOpenLogs() {
-    if (!isTauriRuntime) {
-      setToast({ message: "Open logs is available in the desktop app", tone: "info" });
-      return;
-    }
     try {
       await openLogsDir();
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Open logs failed", tone: "error" });
+    }
+  }
+
+  function handleCustomStartChange(event: ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value;
+    setCustomStart(value);
+    if (value) {
+      window.requestAnimationFrame(() => customEndRef.current?.focus());
+    }
+  }
+
+  function handleCustomEndChange(event: ChangeEvent<HTMLInputElement>) {
+    const value = event.target.value;
+    setCustomEnd(value);
+    if (value) {
+      const target = event.currentTarget;
+      window.requestAnimationFrame(() => target.blur());
+    }
+  }
+
+  function handleDateInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.currentTarget.blur();
     }
   }
 
@@ -1616,7 +1667,7 @@ export default function App() {
                           className="button ghost small"
                           type="button"
                           onClick={() => handleRevealPath(storageInfo?.appDataDir, true)}
-                          disabled={!storageInfo?.appDataDir || !isTauriRuntime}
+                          disabled={!storageInfo?.appDataDir}
                         >
                           Reveal
                         </button>
@@ -1870,208 +1921,249 @@ export default function App() {
       ) : (
         <>
           <header className="hero">
-            <div className="hero-copy">
-              <div className="brand">
-                <div className="brand-mark" aria-hidden="true">
-                  <CodexTrackerLogo />
-                </div>
-                <div className="brand-text">
-                  <h1 className="brand-name">
-                    Codex <span>Tracker</span>
-                  </h1>
+            <div className="hero-top">
+              <div className="hero-copy">
+                <div className="brand">
+                  <div className="brand-mark" aria-hidden="true">
+                    <CodexTrackerLogo />
+                  </div>
+                  <div className="brand-text">
+                    <h1 className="brand-name">
+                      Codex <span>Tracker</span>
+                    </h1>
+                    <div className="brand-subtitle">
+                      <span>Local usage intelligence for Codex.</span>
+                      <button
+                        className="info-icon"
+                        type="button"
+                        data-tooltip="Monitor tokens, cost, and context pressure across models with fast refreshes."
+                        aria-label="About Codex Tracker"
+                      >
+                        i
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="brand-tagline">
-                <span>Local usage intelligence for Codex.</span>
-                <button
-                  className="info-icon"
-                  type="button"
-                  data-tooltip="Monitor tokens, cost, and context pressure across models with fast refreshes."
-                  aria-label="About Codex Tracker"
-                >
-                  i
-                </button>
+              <div className="range-toolbar">
+                <div className="range-toolbar-main">
+                  <div className="range-group">
+                    <span className="label">Range</span>
+                    <SelectField
+                      value={range}
+                      onValueChange={(value) => setRange(value as RangeValue)}
+                      options={rangeOptions}
+                      size="compact"
+                      ariaLabel="Range"
+                    />
+                  </div>
+                  {range === "custom" && (
+                    <div className="custom-range custom-range-toolbar">
+                      <div className="date-field">
+                        <input
+                          ref={customStartRef}
+                          type="date"
+                          value={customStart}
+                          onChange={handleCustomStartChange}
+                          onKeyDown={handleDateInputKeyDown}
+                          className={`input input-compact ${customStart ? "" : "input-empty"}`}
+                          aria-label="Start date"
+                        />
+                        {!customStart && <span className="date-placeholder">Start date</span>}
+                      </div>
+                      <span className="range-divider" aria-hidden="true">
+                        -
+                      </span>
+                      <div className="date-field">
+                        <input
+                          ref={customEndRef}
+                          type="date"
+                          value={customEnd}
+                          onChange={handleCustomEndChange}
+                          onKeyDown={handleDateInputKeyDown}
+                          className={`input input-compact ${customEnd ? "" : "input-empty"}`}
+                          aria-label="End date"
+                        />
+                        {!customEnd && <span className="date-placeholder">End date</span>}
+                      </div>
+                    </div>
+                  )}
+                  <div className="range-group">
+                    <span className="label">Auto refresh</span>
+                    <SelectField
+                      value={autoRefresh}
+                      onValueChange={(value) => setAutoRefresh(value as AutoRefreshValue)}
+                      options={autoRefreshOptions}
+                      size="compact"
+                      ariaLabel="Auto refresh"
+                    />
+                  </div>
+                </div>
+                <div className="range-toolbar-actions">
+                  <button
+                    className="icon-button small"
+                    onClick={handleIngest}
+                    disabled={isRefreshing}
+                    title="Refresh (Cmd+R)"
+                    aria-label="Refresh"
+                  >
+                    {isRefreshing ? (
+                      <span className="spinner" aria-hidden="true" />
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                        <path
+                          d="M20 12a8 8 0 1 1-2.3-5.7"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M20 5v5h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    className="icon-button icon-button-ghost small"
+                    type="button"
+                    onClick={handleOpenLogs}
+                    title="Open logs (Cmd+L)"
+                    aria-label="Open logs"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                      <path
+                        d="M4 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    className="icon-button small"
+                    type="button"
+                    onClick={() => setIsSettingsOpen(true)}
+                    aria-label="Open settings"
+                    title="Settings"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                      <path
+                        d="M12 15.6a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z"
+                        fill="currentColor"
+                        opacity="0.9"
+                      />
+                      <path
+                        d="M19.14 12.94a7.8 7.8 0 0 0 0-1.88l2.03-1.58a.9.9 0 0 0 .22-1.16l-1.92-3.32a.9.9 0 0 0-1.1-.4l-2.4.97a7.6 7.6 0 0 0-1.63-.94l-.37-2.55a.9.9 0 0 0-.89-.78H8.9a.9.9 0 0 0-.89.78l-.37 2.55c-.58.23-1.13.54-1.63.94l-2.4-.97a.9.9 0 0 0-1.1.4L.6 8.32a.9.9 0 0 0 .22 1.16l2.03 1.58a7.8 7.8 0 0 0 0 1.88L.82 14.52a.9.9 0 0 0-.22 1.16l1.92 3.32a.9.9 0 0 0 1.1.4l2.4-.97c.5.4 1.05.71 1.63.94l.37 2.55a.9.9 0 0 0 .89.78h4.2a.9.9 0 0 0 .89-.78l.37-2.55c.58-.23 1.13-.54 1.63-.94l2.4.97a.9.9 0 0 0 1.1-.4l1.92-3.32a.9.9 0 0 0-.22-1.16l-2.03-1.58Z"
+                        fill="currentColor"
+                        opacity="0.55"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <div className="range-status" title={ingestStatus}>
+                  {ingestStatus}
+                </div>
+                {error && <p className="error">{error}</p>}
               </div>
             </div>
-            <div className="range-panel">
-              <div className="range-panel-header">
-                <label className="label">Range</label>
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => setIsSettingsOpen(true)}
-                  aria-label="Open settings"
-                  title="Settings"
-                >
-                  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                    <path
-                      d="M12 15.6a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z"
-                      fill="currentColor"
-                      opacity="0.9"
-                    />
-                    <path
-                      d="M19.14 12.94a7.8 7.8 0 0 0 0-1.88l2.03-1.58a.9.9 0 0 0 .22-1.16l-1.92-3.32a.9.9 0 0 0-1.1-.4l-2.4.97a7.6 7.6 0 0 0-1.63-.94l-.37-2.55a.9.9 0 0 0-.89-.78H8.9a.9.9 0 0 0-.89.78l-.37 2.55c-.58.23-1.13.54-1.63.94l-2.4-.97a.9.9 0 0 0-1.1.4L.6 8.32a.9.9 0 0 0 .22 1.16l2.03 1.58a7.8 7.8 0 0 0 0 1.88L.82 14.52a.9.9 0 0 0-.22 1.16l1.92 3.32a.9.9 0 0 0 1.1.4l2.4-.97c.5.4 1.05.71 1.63.94l.37 2.55a.9.9 0 0 0 .89.78h4.2a.9.9 0 0 0 .89-.78l.37-2.55c.58-.23 1.13-.54 1.63-.94l2.4.97a.9.9 0 0 0 1.1-.4l1.92-3.32a.9.9 0 0 0-.22-1.16l-2.03-1.58Z"
-                      fill="currentColor"
-                      opacity="0.55"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <SelectField
-                value={range}
-                onValueChange={(value) => setRange(value as RangeValue)}
-                options={rangeOptions}
-                size="compact"
-                ariaLabel="Range"
-              />
-              {range === "custom" && (
-                <div className="custom-range custom-range-compact">
-                  <input
-                    type="datetime-local"
-                    value={customStart}
-                    onChange={(event) => setCustomStart(event.target.value)}
-                  />
-                  <input
-                    type="datetime-local"
-                    value={customEnd}
-                    onChange={(event) => setCustomEnd(event.target.value)}
-                  />
+            <section className="grid summary-grid hero-metrics">
+              <div className="card kpi-card">
+                <p className="card-label">Total Tokens</p>
+                <div className="card-value-row">
+                  <p className="card-value tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-lg" />
+                    ) : (
+                      formatNumber(summary?.total_tokens)
+                    )}
+                  </p>
+                  <p className="card-meta-inline tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-sm" />
+                    ) : (
+                      <>
+                        <span>Input {formatNumber(summary?.input_tokens)}</span>
+                        <span className="meta-sep">•</span>
+                        <span>Output {formatNumber(summary?.output_tokens)}</span>
+                      </>
+                    )}
+                  </p>
                 </div>
-              )}
-              <div className="range-panel-actions">
-                <button
-                  className="button"
-                  onClick={handleIngest}
-                  disabled={isRefreshing}
-                  title="Refresh (Cmd+R)"
-                >
-                  <span className="button-content">
-                    {isRefreshing && <span className="spinner" aria-hidden="true" />}
-                    <span>Refresh</span>
-                  </span>
-                </button>
-                <button
-                  className="button ghost small"
-                  type="button"
-                  onClick={handleOpenLogs}
-                  title="Open logs (Cmd+L)"
-                >
-                  Logs
-                </button>
               </div>
-              <div className="ingest-stats">
-                <span>
-                  {ingestStats
-                    ? `Last scan: ${formatNumber(ingestStats.files_scanned)} files · Inserted ${formatNumber(
-                        ingestStats.events_inserted
-                      )} events`
-                    : "Last scan: —"}
-                </span>
+              <div className="card kpi-card">
+                <p className="card-label">Total Cost</p>
+                <div className="card-value-row">
+                  <p className="card-value tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-lg" />
+                    ) : (
+                      formatCurrency(summary?.total_cost_usd)
+                    )}
+                  </p>
+                  <p className="card-meta-inline tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-sm" />
+                    ) : (
+                      <>
+                        <span>Input {formatCurrency(summary?.input_cost_usd)}</span>
+                        <span className="meta-sep">•</span>
+                        <span>Output {formatCurrency(summary?.output_cost_usd)}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
               </div>
-              <div className="row">
-                <label className="label">Auto refresh</label>
-                <SelectField
-                  value={autoRefresh}
-                  onValueChange={(value) => setAutoRefresh(value as AutoRefreshValue)}
-                  options={autoRefreshOptions}
-                  size="compact"
-                  ariaLabel="Auto refresh"
-                />
+              <div className="card kpi-card">
+                <p className="card-label">Cached Input</p>
+                <div className="card-value-row">
+                  <p className="card-value tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-lg" />
+                    ) : (
+                      formatNumber(summary?.cached_input_tokens)
+                    )}
+                  </p>
+                  <p className="card-meta-inline tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-sm" />
+                    ) : (
+                      <span>Cost {formatCurrency(summary?.cached_input_cost_usd)}</span>
+                    )}
+                  </p>
+                </div>
               </div>
-              {error && <p className="error">{error}</p>}
-            </div>
-          </header>
-
-      <section className="grid summary-grid">
-        <div className="card kpi-card">
-          <p className="card-label">Total Tokens</p>
-          <div className="card-value-row">
-            <p className="card-value tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-lg" />
-              ) : (
-                formatNumber(summary?.total_tokens)
-              )}
-            </p>
-            <p className="card-meta-inline tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-sm" />
-              ) : (
-                <>
-                  <span>Input {formatNumber(summary?.input_tokens)}</span>
-                  <span className="meta-sep">•</span>
-                  <span>Output {formatNumber(summary?.output_tokens)}</span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="card kpi-card">
-          <p className="card-label">Total Cost</p>
-          <div className="card-value-row">
-            <p className="card-value tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-lg" />
-              ) : (
-                formatCurrency(summary?.total_cost_usd)
-              )}
-            </p>
-            <p className="card-meta-inline tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-sm" />
-              ) : (
-                <>
-                  <span>Input {formatCurrency(summary?.input_cost_usd)}</span>
-                  <span className="meta-sep">•</span>
-                  <span>Output {formatCurrency(summary?.output_cost_usd)}</span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="card kpi-card">
-          <p className="card-label">Cached Input</p>
-          <div className="card-value-row">
-            <p className="card-value tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-lg" />
-              ) : (
-                formatNumber(summary?.cached_input_tokens)
-              )}
-            </p>
-            <p className="card-meta-inline tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-sm" />
-              ) : (
-                <span>Cost {formatCurrency(summary?.cached_input_cost_usd)}</span>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="card kpi-card">
-          <p className="card-label">Output Tokens</p>
-          <div className="card-value-row">
-            <p className="card-value tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-lg" />
-              ) : (
-                formatNumber(summary?.output_tokens)
-              )}
-            </p>
-            <p className="card-meta-inline tabular-nums">
-              {showSummarySkeleton ? (
-                <span className="skeleton-line skeleton-line-sm" />
-              ) : (
-                <>
-                  <span>Reasoning {formatNumber(summary?.reasoning_output_tokens)}</span>
-                  <span className="meta-sep">•</span>
-                  <span>Cost {formatCurrency(summary?.output_cost_usd)}</span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-      </section>
+              <div className="card kpi-card">
+                <p className="card-label">Output Tokens</p>
+                <div className="card-value-row">
+                  <p className="card-value tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-lg" />
+                    ) : (
+                      formatNumber(summary?.output_tokens)
+                    )}
+                  </p>
+                  <p className="card-meta-inline tabular-nums">
+                    {showSummarySkeleton ? (
+                      <span className="skeleton-line skeleton-line-sm" />
+                    ) : (
+                      <>
+                        <span>Reasoning {formatNumber(summary?.reasoning_output_tokens)}</span>
+                        <span className="meta-sep">•</span>
+                        <span>Cost {formatCurrency(summary?.output_cost_usd)}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </section>
+    </header>
 
       <section className="panel active-sessions">
         <div className="panel-header">

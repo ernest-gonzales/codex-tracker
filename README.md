@@ -1,7 +1,7 @@
 # Codex Tracker
 
-Local-only Codex CLI usage tracker (tokens + cost) with a Rust (Axum) backend and a React dashboard.
-Everything runs on `127.0.0.1` and stores data in a local SQLite database.
+Local-only Codex CLI usage tracker (tokens + cost) with a Rust backend and a React dashboard,
+bundled as a Tauri desktop app. Everything runs on-device and stores data in a local SQLite database.
 
 ## Features
 
@@ -17,15 +17,14 @@ Everything runs on `127.0.0.1` and stores data in a local SQLite database.
 
 - Rust workspace:
   - `crates/app/` (`tracker_app`): shared app layer for DB init, pricing defaults, ingestion, and range parsing.
-  - `crates/server/` (`tracker_server`): Axum server + JSON API + static file hosting for the web UI.
   - `crates/ingest/` (`ingest`): discovers Codex logs under the configured Codex home and ingests them incrementally.
   - `crates/db/` (`tracker_db`): SQLite schema/migrations + query layer.
   - `crates/core/` (`tracker_core`): shared types and helpers (ranges, bucketing, pricing math).
 - Web UI:
   - `apps/web/`: React + TypeScript + Vite, Tailwind CSS, and Recharts.
-  - Built assets live in `apps/web/dist` (or a custom dist directory).
+  - Built assets live in `apps/web/dist` and are loaded by the desktop shell.
 - Desktop app:
-  - `apps/desktop/src-tauri`: Tauri shell that hosts the React UI and calls the Rust backend via IPC.
+  - `apps/desktop/src-tauri`: Tauri shell + IPC commands that host the React UI and call the Rust backend.
 
 ## Quick start (from source)
 
@@ -33,25 +32,6 @@ Requirements:
 
 - Rust stable (this repo uses Rust 2024 edition; use a recent stable toolchain).
 - Node.js + npm (recommended: current LTS).
-
-Build the frontend once:
-
-```bash
-cd apps/web
-npm install
-npm run build
-```
-
-Run the server:
-
-```bash
-cargo run -p tracker_server
-```
-
-It binds to `http://127.0.0.1:3030` and will try to open your browser automatically.
-Set `CODEX_TRACKER_PORT` to override the port if 3030 is in use.
-
-## Desktop app (Tauri)
 
 Build the frontend once:
 
@@ -94,55 +74,8 @@ The app ingests Codex CLI logs from the currently selected Codex home:
 
 ### Database and pricing defaults
 
-The server stores its runtime files next to the server executable:
-
-- SQLite DB: `codex-tracker.sqlite`
-- Pricing defaults JSON: `codex-tracker-pricing.json`
-
-Typical paths:
-
-- `cargo run`: `target/debug/codex-tracker.sqlite`
-- bundle: `bundle/codex-tracker.sqlite`
-
-For the desktop app, the database and pricing defaults live in the OS app data directory
-(Tauri `AppData`), surfaced in the Settings modal under Storage.
-
-### Frontend asset directory
-
-The server resolves the UI asset directory in this order:
-
-1. `$CODEX_TRACKER_DIST` (absolute or relative path)
-2. `./dist` next to the server executable (useful for bundles)
-3. `apps/web/dist` (dev default)
-
-## Build a runnable bundle
-
-```bash
-./scripts/build-bundle.sh
-./bundle/codex-tracker
-```
-
-This produces a portable `bundle/` directory containing:
-
-- `bundle/codex-tracker` (server binary)
-- `bundle/dist/` (built frontend assets)
-
-## API (optional)
-
-The UI uses the JSON API directly; it’s also handy for scripting:
-
-- Health: `GET /api/health`
-- Ingest now: `POST /api/ingest/run`
-- Summary: `GET /api/summary?range=last7days` (or `range=today|last14days|thismonth|alltime`)
-- Pricing: `GET /api/pricing`, `PUT /api/pricing`, `POST /api/pricing/recompute`
-- Homes: `GET /api/homes`, `POST /api/homes`, `PUT /api/homes/active`, `DELETE /api/homes/:id`
-- Limits: `GET /api/limits`, `GET /api/limits/current`, `GET /api/limits/7d/windows`
-
-Example:
-
-```bash
-curl -sS -X POST http://127.0.0.1:3030/api/ingest/run
-```
+The desktop app stores its runtime files in the OS app data directory (Tauri `AppData`),
+surfaced in the Settings modal under Storage.
 
 ## Development
 
