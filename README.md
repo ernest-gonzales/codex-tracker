@@ -37,7 +37,7 @@ Download the latest notarized DMG from GitHub Releases:
 ### Homebrew (cask)
 
 ```bash
-brew tap ernest-gonzales/homebrew-codex-tracker
+brew tap ernest-gonzales/homebrew-tap
 brew install --cask codex-tracker
 ```
 

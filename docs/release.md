@@ -84,7 +84,7 @@ After a local `cargo tauri build` on macOS:
 
 ## Homebrew cask updates
 
-The cask template lives at `docs/homebrew/Casks/codex-tracker.rb`. For each release:
+The cask lives in the Homebrew tap repo at `ernest-gonzales/homebrew-tap` under `Casks/codex-tracker.rb`. For each release:
 
 1. Update `version`.
 2. Update `sha256` values for both `arm` and `intel` DMGs.
