@@ -763,6 +763,31 @@ fn is_log_path(path: &Path) -> bool {
     )
 }
 
+fn is_plain_log(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|value| value.to_str()),
+        Some("log")
+    )
+}
+
+fn looks_like_jsonl(file: &mut File) -> io::Result<bool> {
+    file.seek(SeekFrom::Start(0))?;
+    let mut reader = BufReader::new(file);
+    let mut buf = String::new();
+    for _ in 0..5 {
+        buf.clear();
+        if reader.read_line(&mut buf)? == 0 {
+            break;
+        }
+        let line = buf.trim();
+        if line.is_empty() {
+            continue;
+        }
+        return Ok(line.starts_with('{'));
+    }
+    Ok(false)
+}
+
 pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> {
     let mut stats = IngestStats::default();
     let timing_enabled = env::var("CODEX_TRACKER_INGEST_TIMING").is_ok();
@@ -835,6 +860,23 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                 continue;
             }
         };
+        if is_plain_log(path) {
+            match looks_like_jsonl(&mut file) {
+                Ok(true) => {}
+                Ok(false) => {
+                    stats.files_skipped += 1;
+                    continue;
+                }
+                Err(err) => {
+                    stats.files_skipped += 1;
+                    stats.issues.push(IngestIssue {
+                        file_path: file_path.clone(),
+                        message: err.to_string(),
+                    });
+                    continue;
+                }
+            }
+        }
         if let Err(err) = file.seek(SeekFrom::Start(start_offset)) {
             stats.files_skipped += 1;
             stats.issues.push(IngestIssue {
@@ -1276,6 +1318,25 @@ mod tests {
             .expect("cursor");
         let expected_offset = (line.len() + 1) as u64;
         assert_eq!(cursor.byte_offset, expected_offset);
+    }
+
+    #[test]
+    fn ingest_skips_plain_log_files() {
+        let dir = tempdir().expect("tempdir");
+        let log_path = dir.path().join("codex-tui.log");
+        let json_path = dir.path().join("rollout-2025-12-19T21-31-36.jsonl");
+        let db_path = dir.path().join("ingest.sqlite");
+        let mut db = Db::open(&db_path).expect("open db");
+        db.migrate().expect("migrate");
+        fs::write(&log_path, "not json\nmore text\n").expect("write log");
+        fs::write(
+            &json_path,
+            r#"{"timestamp":"2025-12-19T21:31:36.168Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-test","total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":2,"reasoning_output_tokens":0,"total_tokens":12},"model_context_window":100}}}"#,
+        )
+        .expect("write json");
+        let stats = ingest_codex_home(&mut db, dir.path()).expect("ingest");
+        assert_eq!(stats.events_inserted, 1);
+        assert!(stats.files_skipped >= 1);
     }
 
     #[test]
