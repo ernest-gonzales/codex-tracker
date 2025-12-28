@@ -2407,14 +2407,22 @@ export default function App() {
                         key={`${window.window_end}-${window.window_start ?? "none"}`}
                         className={`limits-row ${window.complete ? "" : "incomplete"}`}
                       >
-                        <span>
+                        <span className="limits-cell" data-label="Window">
                           {startLabel} → {endLabel}
                           {isCurrent && <span className="limit-badge">Current</span>}
                         </span>
-                        <span>{formatNumber(window.total_tokens)}</span>
-                        <span>{formatCurrency(window.total_cost_usd)}</span>
-                        <span>{formatNumber(window.message_count)}</span>
-                        <span className={deltaClass}>{deltaLabel}</span>
+                        <span className="limits-cell" data-label="Tokens">
+                          {formatNumber(window.total_tokens)}
+                        </span>
+                        <span className="limits-cell" data-label="Cost">
+                          {formatCurrency(window.total_cost_usd)}
+                        </span>
+                        <span className="limits-cell" data-label="Messages">
+                          {formatNumber(window.message_count)}
+                        </span>
+                        <span className={`limits-cell ${deltaClass}`} data-label="Change">
+                          {deltaLabel}
+                        </span>
                       </div>
                     );
                   })}

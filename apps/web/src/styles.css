@@ -1712,6 +1712,25 @@ input[type="number"] {
     gap: 6px;
   }
 
+  .limits-header {
+    display: none;
+  }
+
+  .limits-cell {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .limits-cell::before {
+    content: attr(data-label);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 9px;
+  }
+
   .settings-layout {
     grid-template-columns: 1fr;
   }
