@@ -8,3 +8,4 @@ apps/web/.env*
 apps/web/npm-debug.log*
 apps/web/.eslintcache
 bundle
+apps/web/.npmrc
