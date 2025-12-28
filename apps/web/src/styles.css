@@ -213,7 +213,7 @@ h1.brand-name {
   backdrop-filter: blur(10px);
 }
 
-.range-toolbar-main {
+.range-toolbar-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -230,6 +230,14 @@ h1.brand-name {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  transition: opacity 0.15s ease;
+  visibility: visible;
+}
+
+.custom-range-toolbar.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .range-divider {
@@ -780,6 +788,16 @@ h1.brand-name {
   transition: opacity 0.15s ease;
 }
 
+.pricing-actions-cell {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.pricing-actions-cell .table-actions {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
 .pricing-table tbody tr:hover .table-actions-compact,
 .pricing-table tbody tr:focus-within .table-actions-compact {
   opacity: 1;
@@ -1127,6 +1145,11 @@ tbody td {
 .pricing-table .input {
   padding: 5px 7px;
   font-size: 11px;
+}
+
+.pricing-table .input-overlay {
+  padding: 0 7px;
+  font-size: 10px;
 }
 
 .pricing-meta {

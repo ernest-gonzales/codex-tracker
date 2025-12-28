@@ -1756,6 +1756,7 @@ export default function App() {
                       <tbody>
                         {pricingRows.map(({ rule, index }) => {
                           const effectiveToValue = formatDateOnlyLocal(rule.effective_to);
+                          const hasEffectiveTo = Boolean(effectiveToValue);
                           const rowIssues = pricingIssueMap.get(index) ?? [];
                           const hasModelError = rowIssues.some(
                             (issue) => issue.field === "model_pattern"
@@ -1847,20 +1848,27 @@ export default function App() {
                                 />
                               </td>
                               <td>
-                                <input
-                                  className={`input ${hasRangeError ? "input-error" : ""}`}
-                                  type="date"
-                                  value={effectiveToValue}
-                                  onChange={(event) =>
-                                    updatePricingRule(index, {
-                                      effective_to: event.target.value
-                                        ? parseDateOnlyLocal(event.target.value)
-                                        : null
-                                    })
-                                  }
-                                />
+                                <div className="input-wrap">
+                                  <input
+                                    className={`input ${hasRangeError ? "input-error" : ""} ${
+                                      hasEffectiveTo ? "" : "input-empty"
+                                    }`}
+                                    type="date"
+                                    value={effectiveToValue}
+                                    onChange={(event) =>
+                                      updatePricingRule(index, {
+                                        effective_to: event.target.value
+                                          ? parseDateOnlyLocal(event.target.value)
+                                          : null
+                                      })
+                                    }
+                                  />
+                                  {!hasEffectiveTo && (
+                                    <span className="input-overlay">No end date</span>
+                                  )}
+                                </div>
                               </td>
-                              <td>
+                              <td className="pricing-actions-cell">
                                 <div className="table-actions table-actions-compact">
                                   <button
                                     className="icon-button icon-button-ghost small"
@@ -1946,7 +1954,7 @@ export default function App() {
                 </div>
               </div>
               <div className="range-toolbar">
-                <div className="range-toolbar-main">
+                <div className="range-toolbar-row range-toolbar-row-range">
                   <div className="range-group">
                     <span className="label">Range</span>
                     <SelectField
@@ -1957,37 +1965,45 @@ export default function App() {
                       ariaLabel="Range"
                     />
                   </div>
-                  {range === "custom" && (
-                    <div className="custom-range custom-range-toolbar">
-                      <div className="date-field">
-                        <input
-                          ref={customStartRef}
-                          type="date"
-                          value={customStart}
-                          onChange={handleCustomStartChange}
-                          onKeyDown={handleDateInputKeyDown}
-                          className={`input input-compact ${customStart ? "" : "input-empty"}`}
-                          aria-label="Start date"
-                        />
-                        {!customStart && <span className="date-placeholder">Start date</span>}
-                      </div>
-                      <span className="range-divider" aria-hidden="true">
-                        -
-                      </span>
-                      <div className="date-field">
-                        <input
-                          ref={customEndRef}
-                          type="date"
-                          value={customEnd}
-                          onChange={handleCustomEndChange}
-                          onKeyDown={handleDateInputKeyDown}
-                          className={`input input-compact ${customEnd ? "" : "input-empty"}`}
-                          aria-label="End date"
-                        />
-                        {!customEnd && <span className="date-placeholder">End date</span>}
-                      </div>
+                  <div
+                    className={`custom-range custom-range-toolbar ${
+                      range === "custom" ? "is-active" : "is-hidden"
+                    }`}
+                    data-active={range === "custom"}
+                    aria-hidden={range !== "custom"}
+                  >
+                    <div className="date-field">
+                      <input
+                        ref={customStartRef}
+                        type="date"
+                        value={customStart}
+                        onChange={handleCustomStartChange}
+                        onKeyDown={handleDateInputKeyDown}
+                        className={`input input-compact ${customStart ? "" : "input-empty"}`}
+                        aria-label="Start date"
+                        disabled={range !== "custom"}
+                      />
+                      {!customStart && <span className="date-placeholder">Start date</span>}
                     </div>
-                  )}
+                    <span className="range-divider" aria-hidden="true">
+                      -
+                    </span>
+                    <div className="date-field">
+                      <input
+                        ref={customEndRef}
+                        type="date"
+                        value={customEnd}
+                        onChange={handleCustomEndChange}
+                        onKeyDown={handleDateInputKeyDown}
+                        className={`input input-compact ${customEnd ? "" : "input-empty"}`}
+                        aria-label="End date"
+                        disabled={range !== "custom"}
+                      />
+                      {!customEnd && <span className="date-placeholder">End date</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="range-toolbar-row range-toolbar-row-refresh">
                   <div className="range-group">
                     <span className="label">Auto refresh</span>
                     <SelectField
@@ -1999,7 +2015,7 @@ export default function App() {
                     />
                   </div>
                 </div>
-                <div className="range-toolbar-actions">
+                <div className="range-toolbar-actions range-toolbar-row range-toolbar-row-actions">
                   <button
                     className="icon-button small"
                     onClick={handleIngest}
