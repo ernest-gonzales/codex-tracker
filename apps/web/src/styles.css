@@ -395,7 +395,7 @@ h1.brand-name {
   padding: 6px;
   color: var(--text);
   box-shadow: var(--shadow);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .select-viewport {
@@ -422,7 +422,7 @@ h1.brand-name {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .select-item:hover,
@@ -1106,6 +1106,12 @@ tbody td {
   display: grid;
   gap: 6px;
   font-size: 12px;
+}
+
+.limits-table-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .limits-row {

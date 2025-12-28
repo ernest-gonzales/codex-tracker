@@ -152,6 +152,12 @@ function formatPercentWhole(value: number | null | undefined) {
   return `${Math.round(value)}%`;
 }
 
+function formatLimitPercentLeft(value: number | null | undefined) {
+  if (value === null || value === undefined) return "100%";
+  if (value === 0) return "100%";
+  return formatPercentWhole(value);
+}
+
 function formatCostPerMillion(cost: number | null | undefined, tokens: number | null | undefined) {
   if (cost === null || cost === undefined || !tokens) {
     return "-";
@@ -1871,7 +1877,7 @@ export default function App() {
             <p className="card-label">5h Remaining</p>
             <div className="limit-inline-row">
               <p className="limit-value">
-                {formatPercentWhole(limits?.primary?.percent_left)}
+                {formatLimitPercentLeft(limits?.primary?.percent_left)}
               </p>
               <p className="card-meta limit-inline-meta">
                 Resets {formatResetLabel(limits?.primary?.reset_at)} ·{" "}
@@ -1891,7 +1897,7 @@ export default function App() {
             <p className="card-label">7d Remaining</p>
             <div className="limit-inline-row">
               <p className="limit-value">
-                {formatPercentWhole(limits?.secondary?.percent_left)}
+                {formatLimitPercentLeft(limits?.secondary?.percent_left)}
               </p>
               <p className="card-meta limit-inline-meta">
                 Resets {formatResetLabel(limits?.secondary?.reset_at)} ·{" "}
@@ -1911,53 +1917,55 @@ export default function App() {
         {limitWindowRows.length === 0 ? (
           <p className="note">No 7-day reset windows captured yet.</p>
         ) : (
-          <div className="limits-table">
-            <div className="limits-row limits-header">
-              <span>Window</span>
-              <span>Tokens</span>
-              <span>Cost</span>
-              <span>Messages</span>
-              <span>Change</span>
+          <div className="limits-table-scroll">
+            <div className="limits-table">
+              <div className="limits-row limits-header">
+                <span>Window</span>
+                <span>Tokens</span>
+                <span>Cost</span>
+                <span>Messages</span>
+                <span>Change</span>
+              </div>
+              {limitWindowRows.map((window) => {
+                const startLabel = window.window_start
+                  ? formatBucketLabel(window.window_start)
+                  : "—";
+                const endLabel = formatBucketLabel(window.window_end);
+                const now = Date.now();
+                const startMs = window.window_start
+                  ? new Date(window.window_start).getTime()
+                  : Number.NaN;
+                const endMs = new Date(window.window_end).getTime();
+                const isCurrent =
+                  !Number.isNaN(endMs) &&
+                  (Number.isNaN(startMs) ? now < endMs : now >= startMs && now < endMs);
+                const deltaLabel =
+                  window.delta === null || window.delta === undefined
+                    ? "—"
+                    : `${window.delta >= 0 ? "+" : ""}${window.delta.toFixed(1)}%`;
+                const deltaClass =
+                  window.delta === null || window.delta === undefined
+                    ? ""
+                    : window.delta < 0
+                      ? "neg"
+                      : "pos";
+                return (
+                  <div
+                    key={`${window.window_end}-${window.window_start ?? "none"}`}
+                    className={`limits-row ${window.complete ? "" : "incomplete"}`}
+                  >
+                    <span>
+                      {startLabel} → {endLabel}
+                      {isCurrent && <span className="limit-badge">Current</span>}
+                    </span>
+                    <span>{formatNumber(window.total_tokens)}</span>
+                    <span>{formatCurrency(window.total_cost_usd)}</span>
+                    <span>{formatNumber(window.message_count)}</span>
+                    <span className={deltaClass}>{deltaLabel}</span>
+                  </div>
+                );
+              })}
             </div>
-            {limitWindowRows.map((window) => {
-              const startLabel = window.window_start
-                ? formatBucketLabel(window.window_start)
-                : "—";
-              const endLabel = formatBucketLabel(window.window_end);
-              const now = Date.now();
-              const startMs = window.window_start
-                ? new Date(window.window_start).getTime()
-                : Number.NaN;
-              const endMs = new Date(window.window_end).getTime();
-              const isCurrent =
-                !Number.isNaN(endMs) &&
-                (Number.isNaN(startMs) ? now < endMs : now >= startMs && now < endMs);
-              const deltaLabel =
-                window.delta === null || window.delta === undefined
-                  ? "—"
-                  : `${window.delta >= 0 ? "+" : ""}${window.delta.toFixed(1)}%`;
-              const deltaClass =
-                window.delta === null || window.delta === undefined
-                  ? ""
-                  : window.delta < 0
-                    ? "neg"
-                    : "pos";
-              return (
-                <div
-                  key={`${window.window_end}-${window.window_start ?? "none"}`}
-                  className={`limits-row ${window.complete ? "" : "incomplete"}`}
-                >
-                  <span>
-                    {startLabel} → {endLabel}
-                    {isCurrent && <span className="limit-badge">Current</span>}
-                  </span>
-                  <span>{formatNumber(window.total_tokens)}</span>
-                  <span>{formatCurrency(window.total_cost_usd)}</span>
-                  <span>{formatNumber(window.message_count)}</span>
-                  <span className={deltaClass}>{deltaLabel}</span>
-                </div>
-              );
-            })}
           </div>
         )}
       </section>
