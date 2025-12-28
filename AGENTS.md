@@ -1,3 +1,7 @@
+# AGENTS.md
+
+This file is primarily for AI coding agents (e.g. Codex) working on this repository. If you're a human contributor, you can ignore it.
+
 ## Safety guardrails (must-follow)
 
 - Even when running Codex with full access (e.g. `codex -s danger-full-access -a never`), treat any path **outside this repository** as read-only by default.
@@ -78,4 +82,4 @@ and a fancy web frontend. Keep decisions consistent across sessions.
 - Keep schemas and APIs stable and versionable.
 - Prefer incremental ingestion with cursors and dedupe.
 - Document setup and dev commands in a README when created.
-- Crate names: `tracker_core`, `tracker_db`, `tracker_server`, `ingest`.
+- Crate names: `tracker_app`, `tracker_core`, `tracker_db`, `ingest`, `codex_tracker` (desktop shell).

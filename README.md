@@ -3,6 +3,12 @@
 Local-only Codex CLI usage tracker (tokens + cost) with a Rust backend and a React dashboard,
 bundled as a Tauri desktop app. Everything runs on-device and stores data in a local SQLite database.
 
+## Privacy and scope
+
+- Local-only by design: no account, no cloud sync, no backend services required.
+- Reads Codex CLI logs from your configured Codex home (default `~/.codex`) and stores derived analytics in a local SQLite DB.
+- The UI is bundled into the desktop app; there is no web deployment.
+
 ## Features
 
 - Token + cost totals for a selected time range (and all-time).
@@ -52,7 +58,7 @@ use Finder to open it once (Control-click → Open) and the warning should not r
 
 Requirements:
 
-- Rust stable (this repo uses Rust 2024 edition; use a recent stable toolchain).
+- Rust stable 1.85+ (workspace uses a mix of Rust 2021 and Rust 2024 editions).
 - Node.js + npm (recommended: current LTS).
   - macOS: Xcode Command Line Tools are required for Tauri builds.
   - Linux: Tauri depends on `webkit2gtk` and related system packages.
@@ -152,6 +158,11 @@ npm test
 ## Release process
 
 See `docs/release.md` for the macOS release, signing/notarization, and Homebrew cask flow.
+
+## Contributing
+
+- Repo automation: `AGENTS.md` contains guidelines used by AI coding agents when working in this repository.
+- PRs/issues: bug reports and feature requests are welcome via GitHub Issues.
 
 ## License
 
