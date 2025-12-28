@@ -1,85 +1,84 @@
 # AGENTS.md
 
-This file is primarily for AI coding agents (e.g. Codex) working on this repository. If you're a human contributor, you can ignore it.
+## Purpose
 
-## Safety guardrails (must-follow)
+This file defines **project constraints and contribution guidelines** for both
+**AI-assisted** and **human** contributors working on this repository.
 
-- Even when running Codex with full access (e.g. `codex -s danger-full-access -a never`), treat any path **outside this repository** as read-only by default.
-- Never run **destructive** operations outside this repository (including `rm`, `mv`, `chmod/chown`, `truncate`, shell redirects like `> file`, `git reset --hard`, `git clean -fdx`, or any command that deletes/overwrites data).
-- Allowed non-repo exception: you may update `~/.codex/plans/codex-tracker-implementation.md` as part of the project workflow (keep it narrowly scoped to this project; do not delete other files under `~/.codex`).
-- If completing a task would require modifying/deleting something outside this repository (other than the plan file above), stop and ask for input.
+It exists to ensure:
 
-## Agent execution rules (important)
+- architectural consistency
+- safe automation
+- predictable outcomes when using coding agents (e.g. Codex)
 
-- Operate in **autopilot mode**.
-- Do NOT ask “what should I do next?”.
-- Continue working until the **definition of done** is met.
-- Always commit with a message describing what was done.
-- Always add tests when needed.
-- After any frontend task, run `cd apps/web && npm install && npm run build`.
-- Before concluding any frontend task, run `cd apps/web && npm audit`.
-- Always run npm commands with a 15-second timeout; if they fail, report it.
-- Only stop to ask for input if you hit a **hard blocker**:
-  - missing credentials or secrets
-  - unclear requirement that materially changes behavior
-  - destructive action outside this repository
-- For server runs and local curl/API checks, you are pre-authorized to request escalation and proceed without an extra prompt.
+Human contributors may skim or ignore this file unless they are using AI tools.
 
-### Definition of done
+---
 
-- Feature or task fully implemented
-- Relevant tests/builds pass
-- No obvious TODOs left behind
-- Short summary of changes + how to verify
+## Safety & repository boundaries (mandatory)
 
-### Execution loop
+- Treat **all paths outside this repository as read-only**.
+- Never run destructive commands that modify or delete data outside the repository.
+  This includes (but is not limited to):
+  - `rm`, `mv`, `truncate`, shell redirects like `> file`
+  - `git reset --hard`, `git clean -fdx`
+  - changing permissions or ownership (`chmod`, `chown`)
+- If a task would require modifying files outside the repository, **stop and request clarification**.
 
-1. Inspect repository and existing plan
-2. Update or refine the plan if needed
+---
+
+## Contribution execution guidelines
+
+These rules apply equally to human and AI-assisted workflows.
+
+- Work end-to-end on a task until completion.
+- Avoid unnecessary clarification questions unless a requirement is genuinely ambiguous.
+- Prefer incremental, reviewable changes.
+- Commit changes with clear, descriptive messages.
+- Add or update tests when behavior changes.
+- Do not leave unfinished TODOs in production code.
+
+---
+
+## Definition of done
+
+A task is considered complete when:
+
+- The feature or change is fully implemented
+- Relevant tests pass
+- Builds succeed (frontend and/or backend as applicable)
+- No obvious follow-up work is required
+- A short summary explains:
+  - what changed
+  - how to verify it
+
+---
+
+## Execution workflow (recommended)
+
+1. Inspect the repository and understand existing structure
+2. Identify the smallest safe set of changes
 3. Implement incrementally
-4. Run relevant tests / build commands
+4. Run relevant builds/tests
 5. Fix failures
 6. Repeat until green
-7. Summarize
+7. Summarize changes
 
-### Assumptions
+---
 
-- If something is underspecified, choose the most reasonable default
-- Document assumptions in the final summary
+## Assumptions & defaults
 
-### Rust-specific rules
+- If a requirement is underspecified, choose the most reasonable default
+- Document assumptions in commit messages or summaries
+- Prefer clarity and maintainability over cleverness
 
-- Use `cargo fmt` and `cargo clippy` when relevant
-- Treat warnings as errors; ensure `cargo clippy --workspace --all-targets -- -D warnings` is clean before committing
-- If IDE diagnostics disagree, reproduce with `cargo check -p <crate> --tests` (or `cargo clippy -p <crate> --tests -- -D warnings`) and restart rust-analyzer before assuming the warning is real.
-- After Rust changes, run `cargo check` for the affected crate(s) (use `-p codex_tracker` when touching the desktop app) to catch compile errors before committing.
-- Prefer explicit error handling (`thiserror`, `anyhow`)
-- SQLite migrations must be idempotent
-- Avoid breaking public APIs without updating version notes
-- Add or update tests for Rust changes
+---
 
-# Codex Tracker - Agent Notes
+## Rust-specific guidelines
 
-This repo is for a local-only Codex usage tracker (tokens + cost) with a Rust backend
-and a fancy web frontend. Keep decisions consistent across sessions.
+- Run `cargo fmt` and keep formatting clean
+- Treat warnings as errors:
 
-## Core requirements
-
-- Local application only (bind to 127.0.0.1); no publishing/cloud sync.
-- Backend must be in Rust (expected: Axum + SQLite).
-- Frontend should be visually polished; prioritize charts and clear summaries.
-- Ingestion source: Codex CLI logs under the Codex home directory (default `~/.codex`,
-  configurable in-app). Auto-discover and parse all logs under that directory.
-- Analytics focus (v1): model + time only; always show total usage and total cost summaries.
-
-## Planning reference
-
-- Implementation plan lives at `~/.codex/plans/codex-tracker-implementation.md`.
-- Always use this plan as the baseline for work on this project and update it when requirements change. Never ask for permission to edit this file.
-
-## Defaults and preferences
-
-- Keep schemas and APIs stable and versionable.
-- Prefer incremental ingestion with cursors and dedupe.
-- Document setup and dev commands in a README when created.
-- Crate names: `tracker_app`, `tracker_core`, `tracker_db`, `ingest`, `codex_tracker` (desktop shell).
+  ```bash
+  cargo clippy --workspace --all-targets -- -D warnings
+  ```

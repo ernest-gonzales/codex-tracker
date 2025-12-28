@@ -11,4 +11,3 @@ cd "${ROOT_DIR}/apps/desktop/src-tauri"
 cargo tauri build
 
 echo "Local release build complete."
-echo "For signing/notarization, see docs/release.md."
