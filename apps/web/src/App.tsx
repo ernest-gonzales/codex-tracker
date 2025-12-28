@@ -106,6 +106,12 @@ const hourFormat = new Intl.DateTimeFormat(resolvedLocale, {
 });
 const EVENTS_PER_PAGE = 10;
 const COST_BREAKDOWN_PAGE_SIZE = 10;
+const STORAGE_KEYS = {
+  range: "codex-tracker.range",
+  rangeStart: "codex-tracker.range.start",
+  rangeEnd: "codex-tracker.range.end",
+  settingsTab: "codex-tracker.settings.tab"
+};
 
 function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined) return "n/a";
@@ -366,11 +372,50 @@ function downloadFile(name: string, contents: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+function safeStorageGet(key: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore storage write failures (private mode or restricted storage).
+  }
+}
+
+function clampPercent(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, value));
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  if (!element) {
+    return false;
+  }
+  const tagName = element.tagName?.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || element.isContentEditable;
+}
+
 export default function App() {
   const [range, setRange] = useState<RangeValue>("today");
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [settingsTab, setSettingsTab] = useState<string>("settings-homes");
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [activeMinutes, setActiveMinutes] = useState<number>(60);
@@ -421,6 +466,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; tone?: "error" | "info" } | null>(
     null
   );
+  const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
 
   const rangeParams = useMemo(
     () => buildRangeParams(range, customStart, customEnd),
@@ -619,6 +665,46 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const storedRange = safeStorageGet(STORAGE_KEYS.range);
+    if (storedRange && RANGE_OPTIONS.some((option) => option.value === storedRange)) {
+      setRange(storedRange as RangeValue);
+    }
+    const storedStart = safeStorageGet(STORAGE_KEYS.rangeStart);
+    if (storedStart) {
+      setCustomStart(storedStart);
+    }
+    const storedEnd = safeStorageGet(STORAGE_KEYS.rangeEnd);
+    if (storedEnd) {
+      setCustomEnd(storedEnd);
+    }
+    const storedTab = safeStorageGet(STORAGE_KEYS.settingsTab);
+    if (
+      storedTab &&
+      ["settings-homes", "settings-display", "settings-storage", "settings-pricing"].includes(
+        storedTab
+      )
+    ) {
+      setSettingsTab(storedTab);
+    }
+  }, []);
+
+  useEffect(() => {
+    safeStorageSet(STORAGE_KEYS.range, range);
+  }, [range]);
+
+  useEffect(() => {
+    safeStorageSet(STORAGE_KEYS.rangeStart, customStart);
+  }, [customStart]);
+
+  useEffect(() => {
+    safeStorageSet(STORAGE_KEYS.rangeEnd, customEnd);
+  }, [customEnd]);
+
+  useEffect(() => {
+    safeStorageSet(STORAGE_KEYS.settingsTab, settingsTab);
+  }, [settingsTab]);
+
+  useEffect(() => {
     if (!error) {
       return;
     }
@@ -678,6 +764,66 @@ export default function App() {
     };
   }, [isTauriRuntime, rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
 
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return;
+    }
+    const target = document.getElementById(settingsTab);
+    if (target) {
+      target.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [isSettingsOpen, settingsTab]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (event.key === "Escape") {
+        if (selectedSession) {
+          event.preventDefault();
+          setSelectedSession(null);
+          return;
+        }
+        if (isSettingsOpen) {
+          event.preventDefault();
+          setIsSettingsOpen(false);
+        }
+        return;
+      }
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      if (!event.metaKey) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "r") {
+        event.preventDefault();
+        handleIngest();
+      }
+      if (key === "l") {
+        event.preventDefault();
+        handleOpenLogs();
+      }
+      if (key === ",") {
+        event.preventDefault();
+        setIsSettingsOpen(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isSettingsOpen,
+    selectedSession,
+    rangeParamsKey,
+    modelFilter,
+    activeMinutes,
+    chartBucket,
+    activeHome?.path,
+    isTauriRuntime
+  ]);
+
   const modelOptions = useMemo(() => {
     const models = new Set(breakdown.map((item) => item.model));
     return ["all", ...Array.from(models).sort()];
@@ -704,6 +850,17 @@ export default function App() {
     }
     return homes.find((home) => home.id === activeHomeId) ?? null;
   }, [homes, activeHomeId]);
+  const uniformSessionModel = useMemo(() => {
+    if (activeSessions.length === 0) {
+      return null;
+    }
+    const model = activeSessions[0]?.model;
+    if (!model) {
+      return null;
+    }
+    return activeSessions.every((session) => session.model === model) ? model : null;
+  }, [activeSessions]);
+  const showSessionModel = uniformSessionModel === null;
   const homeSelectOptions = useMemo<SelectOption[]>(() => {
     if (homes.length === 0) {
       return [{ value: "none", label: "No homes found", disabled: true }];
@@ -767,6 +924,8 @@ export default function App() {
     contextSampleCount > 0
       ? "Average context usage and pressure for events with known context in this range."
       : "No context window data in this range yet.";
+  const primaryLimitPercent = clampPercent(limits?.primary?.percent_left ?? 100);
+  const secondaryLimitPercent = clampPercent(limits?.secondary?.percent_left ?? 100);
   const limitWindowRows = useMemo(() => {
     if (!limitWindows.length) {
       return [];
@@ -1034,6 +1193,35 @@ export default function App() {
     }
   }
 
+  async function handleOpenLogs() {
+    if (!activeHome?.path) {
+      setToast({ message: "Select a home to open logs", tone: "info" });
+      return;
+    }
+    if (!isTauriRuntime) {
+      setToast({ message: "Open logs is available in the desktop app", tone: "info" });
+      return;
+    }
+    try {
+      const { openPath } = await import("@tauri-apps/plugin-opener");
+      await openPath(activeHome.path);
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Open logs failed", tone: "error" });
+    }
+  }
+
+  async function handleCopySessionId(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setToast({ message: "Session id copied", tone: "info" });
+    } catch (err) {
+      setToast({
+        message: err instanceof Error ? err.message : "Copy failed",
+        tone: "error"
+      });
+    }
+  }
+
   function updatePricingRule(index: number, patch: Partial<PricingRule>) {
     setPricingRules((prev) =>
       prev.map((rule, idx) => (idx === index ? { ...rule, ...patch } : rule))
@@ -1095,6 +1283,102 @@ export default function App() {
           </button>
         </div>
       )}
+      {selectedSession && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onClick={() => setSelectedSession(null)}
+        >
+          <div
+            className="modal session-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="session-detail-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="modal-header">
+              <div>
+                <h2 className="modal-title" id="session-detail-title">
+                  Session {formatSessionLabel(selectedSession.session_id)}
+                </h2>
+                <p className="modal-subtitle">Model {selectedSession.model}</p>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => setSelectedSession(null)}
+                aria-label="Close session details"
+              >
+                ×
+              </button>
+            </header>
+            <div className="modal-body">
+              <div className="session-details-grid">
+                <div>
+                  <span className="label">Session ID</span>
+                  <div className="session-detail-id">
+                    <span className="mono">{selectedSession.session_id}</span>
+                    <button
+                      className="icon-button icon-button-ghost small"
+                      type="button"
+                      onClick={() => handleCopySessionId(selectedSession.session_id)}
+                      aria-label="Copy full session id"
+                      title="Copy session id"
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                        <path
+                          d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1z"
+                          fill="currentColor"
+                          opacity="0.6"
+                        />
+                        <path
+                          d="M18 5H10a2 2 0 0 0-2 2v14h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <span className="label">Started</span>
+                  <div className="session-detail-value">
+                    {formatDateTime(selectedSession.session_start)}
+                  </div>
+                </div>
+                <div>
+                  <span className="label">Last Seen</span>
+                  <div className="session-detail-value">
+                    {formatDateTime(selectedSession.last_seen)}
+                  </div>
+                </div>
+                <div>
+                  <span className="label">Context Used</span>
+                  <div className="session-detail-value tabular-nums">
+                    {formatNumber(selectedSession.context_used)}
+                  </div>
+                </div>
+                <div>
+                  <span className="label">Context Window</span>
+                  <div className="session-detail-value tabular-nums">
+                    {formatNumber(selectedSession.context_window)}
+                  </div>
+                </div>
+                <div>
+                  <span className="label">Pressure</span>
+                  <div className="session-detail-value tabular-nums">
+                    {Math.round(
+                      selectedSession.context_window > 0
+                        ? (selectedSession.context_used / selectedSession.context_window) * 100
+                        : 0
+                    )}
+                    %
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {isSettingsOpen ? (
         <section className="settings-page">
           <header className="settings-header">
@@ -1114,10 +1398,38 @@ export default function App() {
           </header>
           <div className="settings-layout">
             <nav className="settings-nav" aria-label="Settings sections">
-              <a href="#settings-homes">Homes</a>
-              <a href="#settings-display">Display</a>
-              <a href="#settings-storage">Storage</a>
-              <a href="#settings-pricing">Pricing</a>
+              <a
+                href="#settings-homes"
+                className={settingsTab === "settings-homes" ? "active" : undefined}
+                aria-current={settingsTab === "settings-homes" ? "page" : undefined}
+                onClick={() => setSettingsTab("settings-homes")}
+              >
+                Homes
+              </a>
+              <a
+                href="#settings-display"
+                className={settingsTab === "settings-display" ? "active" : undefined}
+                aria-current={settingsTab === "settings-display" ? "page" : undefined}
+                onClick={() => setSettingsTab("settings-display")}
+              >
+                Display
+              </a>
+              <a
+                href="#settings-storage"
+                className={settingsTab === "settings-storage" ? "active" : undefined}
+                aria-current={settingsTab === "settings-storage" ? "page" : undefined}
+                onClick={() => setSettingsTab("settings-storage")}
+              >
+                Storage
+              </a>
+              <a
+                href="#settings-pricing"
+                className={settingsTab === "settings-pricing" ? "active" : undefined}
+                aria-current={settingsTab === "settings-pricing" ? "page" : undefined}
+                onClick={() => setSettingsTab("settings-pricing")}
+              >
+                Pricing
+              </a>
             </nav>
             <div className="settings-content">
               <section id="settings-homes" className="panel settings-section">
@@ -1435,7 +1747,7 @@ export default function App() {
                                     })
                                   }
                                 />
-                                <div className="input-hint">
+                                <div className="input-hint currency-hint tabular-nums">
                                   {formatCurrency(rule.input_per_1m)}
                                 </div>
                               </td>
@@ -1452,7 +1764,7 @@ export default function App() {
                                     })
                                   }
                                 />
-                                <div className="input-hint">
+                                <div className="input-hint currency-hint tabular-nums">
                                   {formatCurrency(rule.cached_input_per_1m)}
                                 </div>
                               </td>
@@ -1469,7 +1781,7 @@ export default function App() {
                                     })
                                   }
                                 />
-                                <div className="input-hint">
+                                <div className="input-hint currency-hint tabular-nums">
                                   {formatCurrency(rule.output_per_1m)}
                                 </div>
                               </td>
@@ -1500,18 +1812,44 @@ export default function App() {
                                 />
                               </td>
                               <td>
-                                <div className="table-actions">
+                                <div className="table-actions table-actions-compact">
                                   <button
-                                    className="button ghost small"
+                                    className="icon-button icon-button-ghost small"
+                                    type="button"
                                     onClick={() => duplicatePricingRule(index)}
+                                    aria-label="Duplicate pricing rule"
+                                    title="Duplicate"
                                   >
-                                    Duplicate
+                                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                                      <path
+                                        d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1z"
+                                        fill="currentColor"
+                                        opacity="0.6"
+                                      />
+                                      <path
+                                        d="M18 5H10a2 2 0 0 0-2 2v14h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"
+                                        fill="currentColor"
+                                      />
+                                    </svg>
                                   </button>
                                   <button
-                                    className="button ghost small"
+                                    className="icon-button icon-button-ghost small"
+                                    type="button"
                                     onClick={() => deletePricingRule(index)}
+                                    aria-label="Delete pricing rule"
+                                    title="Delete"
                                   >
-                                    Delete
+                                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                                      <path
+                                        d="M9 3h6l1 2h4v2H4V5h4l1-2z"
+                                        fill="currentColor"
+                                        opacity="0.6"
+                                      />
+                                      <path
+                                        d="M6 7h12l-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z"
+                                        fill="currentColor"
+                                      />
+                                    </svg>
                                   </button>
                                 </div>
                                 {rowIssues[0] && (
@@ -1545,11 +1883,17 @@ export default function App() {
                   </h1>
                 </div>
               </div>
-              <p className="brand-tagline">Local usage intelligence for Codex.</p>
-              <p className="subtitle">
-                Monitor tokens, cost, and context pressure across models with fresh ranges and fast
-                refreshes.
-              </p>
+              <div className="brand-tagline">
+                <span>Local usage intelligence for Codex.</span>
+                <button
+                  className="info-icon"
+                  type="button"
+                  data-tooltip="Monitor tokens, cost, and context pressure across models with fast refreshes."
+                  aria-label="About Codex Tracker"
+                >
+                  i
+                </button>
+              </div>
             </div>
             <div className="range-panel">
               <div className="range-panel-header">
@@ -1596,12 +1940,27 @@ export default function App() {
                   />
                 </div>
               )}
-              <button className="button" onClick={handleIngest} disabled={isRefreshing}>
-                <span className="button-content">
-                  {isRefreshing && <span className="spinner" aria-hidden="true" />}
-                  <span>Refresh</span>
-                </span>
-              </button>
+              <div className="range-panel-actions">
+                <button
+                  className="button"
+                  onClick={handleIngest}
+                  disabled={isRefreshing}
+                  title="Refresh (Cmd+R)"
+                >
+                  <span className="button-content">
+                    {isRefreshing && <span className="spinner" aria-hidden="true" />}
+                    <span>Refresh</span>
+                  </span>
+                </button>
+                <button
+                  className="button ghost small"
+                  type="button"
+                  onClick={handleOpenLogs}
+                  title="Open logs (Cmd+L)"
+                >
+                  Logs
+                </button>
+              </div>
               <div className="ingest-stats">
                 <span>
                   {ingestStats
@@ -1629,18 +1988,22 @@ export default function App() {
         <div className="card kpi-card">
           <p className="card-label">Total Tokens</p>
           <div className="card-value-row">
-            <p className="card-value">
+            <p className="card-value tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-lg" />
               ) : (
                 formatNumber(summary?.total_tokens)
               )}
             </p>
-            <p className="card-meta-inline">
+            <p className="card-meta-inline tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-sm" />
               ) : (
-                `Input ${formatNumber(summary?.input_tokens)}`
+                <>
+                  <span>Input {formatNumber(summary?.input_tokens)}</span>
+                  <span className="meta-sep">•</span>
+                  <span>Output {formatNumber(summary?.output_tokens)}</span>
+                </>
               )}
             </p>
           </div>
@@ -1648,18 +2011,22 @@ export default function App() {
         <div className="card kpi-card">
           <p className="card-label">Total Cost</p>
           <div className="card-value-row">
-            <p className="card-value">
+            <p className="card-value tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-lg" />
               ) : (
                 formatCurrency(summary?.total_cost_usd)
               )}
             </p>
-            <p className="card-meta-inline">
+            <p className="card-meta-inline tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-sm" />
               ) : (
-                `Output ${formatCurrency(summary?.output_cost_usd)}`
+                <>
+                  <span>Input {formatCurrency(summary?.input_cost_usd)}</span>
+                  <span className="meta-sep">•</span>
+                  <span>Output {formatCurrency(summary?.output_cost_usd)}</span>
+                </>
               )}
             </p>
           </div>
@@ -1667,18 +2034,18 @@ export default function App() {
         <div className="card kpi-card">
           <p className="card-label">Cached Input</p>
           <div className="card-value-row">
-            <p className="card-value">
+            <p className="card-value tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-lg" />
               ) : (
                 formatNumber(summary?.cached_input_tokens)
               )}
             </p>
-            <p className="card-meta-inline">
+            <p className="card-meta-inline tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-sm" />
               ) : (
-                `Cost ${formatCurrency(summary?.cached_input_cost_usd)}`
+                <span>Cost {formatCurrency(summary?.cached_input_cost_usd)}</span>
               )}
             </p>
           </div>
@@ -1686,18 +2053,22 @@ export default function App() {
         <div className="card kpi-card">
           <p className="card-label">Output Tokens</p>
           <div className="card-value-row">
-            <p className="card-value">
+            <p className="card-value tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-lg" />
               ) : (
                 formatNumber(summary?.output_tokens)
               )}
             </p>
-            <p className="card-meta-inline">
+            <p className="card-meta-inline tabular-nums">
               {showSummarySkeleton ? (
                 <span className="skeleton-line skeleton-line-sm" />
               ) : (
-                `Reasoning ${formatNumber(summary?.reasoning_output_tokens)}`
+                <>
+                  <span>Reasoning {formatNumber(summary?.reasoning_output_tokens)}</span>
+                  <span className="meta-sep">•</span>
+                  <span>Cost {formatCurrency(summary?.output_cost_usd)}</span>
+                </>
               )}
             </p>
           </div>
@@ -1720,10 +2091,10 @@ export default function App() {
         {activeSessions.length === 0 ? (
           <p className="note">No recent sessions in this window.</p>
         ) : (
-          <div className="session-table">
+          <div className={`session-table ${showSessionModel ? "" : "session-table-compact"}`}>
             <div className="session-row session-row-head">
               <span>Session</span>
-              <span>Model</span>
+              {showSessionModel && <span>Model</span>}
               <span>Context</span>
               <span>Pressure</span>
             </div>
@@ -1735,28 +2106,71 @@ export default function App() {
                       (session.context_used / session.context_window) * 100
                     )
                   : 0;
+              const startedLabel = formatBucketLabel(session.session_start);
+              const lastSeenLabel = formatBucketLabel(session.last_seen);
               return (
-                <div className="session-row" key={session.session_id}>
-                  <div className="session-cell">
-                    <div className="session-id" title={session.session_id}>
-                      {formatSessionLabel(session.session_id)}
+                <div
+                  className="session-row"
+                  key={session.session_id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open session ${session.session_id}`}
+                  onClick={() => setSelectedSession(session)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedSession(session);
+                    }
+                  }}
+                >
+                  <div className="session-cell session-cell-primary">
+                    <div className="session-title-row">
+                      <div className="session-id" title={session.session_id}>
+                        {formatSessionLabel(session.session_id)}
+                      </div>
+                      {!showSessionModel && uniformSessionModel && (
+                        <span className="session-model-badge">{uniformSessionModel}</span>
+                      )}
+                      <button
+                        className="icon-button icon-button-ghost small session-copy"
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCopySessionId(session.session_id);
+                        }}
+                        aria-label="Copy session id"
+                        title="Copy session id"
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                          <path
+                            d="M16 1H6a2 2 0 0 0-2 2v12h2V3h10V1z"
+                            fill="currentColor"
+                            opacity="0.6"
+                          />
+                          <path
+                            d="M18 5H10a2 2 0 0 0-2 2v14h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </button>
                     </div>
                     <div className="session-sub">
-                      Started {formatBucketLabel(session.session_start)}
+                      Started {startedLabel}
+                      {!showSessionModel && ` • Last ${lastSeenLabel}`}
                     </div>
                   </div>
-                  <div className="session-cell">
-                    <div className="session-model">{session.model}</div>
-                    <div className="session-sub">
-                      Last {formatBucketLabel(session.last_seen)}
+                  {showSessionModel && (
+                    <div className="session-cell">
+                      <div className="session-model">{session.model}</div>
+                      <div className="session-sub">Last {lastSeenLabel}</div>
                     </div>
-                  </div>
+                  )}
                   <div className="session-cell session-cell-metrics">
-                    <span>
-                      {formatNumber(session.context_used)} /{" "}
-                      {formatNumber(session.context_window)}
-                    </span>
                     <span className="session-percent">{Math.round(percent)}%</span>
+                    <span className="session-meta">
+                      {formatNumber(session.context_used)} /{" "}
+                      {formatNumber(session.context_window)} tokens
+                    </span>
                   </div>
                   <div className="session-cell session-cell-bar">
                     <div className="session-bar">
@@ -1791,7 +2205,7 @@ export default function App() {
           <div className="limit-card">
             <p className="card-label">5h Remaining</p>
             <div className="limit-inline-row">
-              <p className="limit-value">
+              <p className="limit-value tabular-nums">
                 {formatLimitPercentLeft(limits?.primary?.percent_left)}
               </p>
               <p className="card-meta limit-inline-meta">
@@ -1799,11 +2213,19 @@ export default function App() {
                 {formatRelativeReset(limits?.primary?.reset_at)}
               </p>
             </div>
+            <div className="limit-progress" aria-hidden="true">
+              <div
+                className="limit-progress-fill"
+                style={{ width: `${primaryLimitPercent}%` }}
+              />
+            </div>
             <p className="card-meta card-meta-compact">
               <span className="limit-inline">Messages</span>{" "}
-              {formatNumber(limitCurrent?.primary?.message_count)}{" "}
+              {formatNumber(limitCurrent?.primary?.message_count)}
+              <span className="meta-sep">•</span>
               <span className="limit-inline">Tokens</span>{" "}
-              {formatNumber(limitCurrent?.primary?.total_tokens)}{" "}
+              {formatNumber(limitCurrent?.primary?.total_tokens)}
+              <span className="meta-sep">•</span>
               <span className="limit-inline">Cost</span>{" "}
               {formatCurrency(limitCurrent?.primary?.total_cost_usd)}
             </p>
@@ -1811,7 +2233,7 @@ export default function App() {
           <div className="limit-card">
             <p className="card-label">7d Remaining</p>
             <div className="limit-inline-row">
-              <p className="limit-value">
+              <p className="limit-value tabular-nums">
                 {formatLimitPercentLeft(limits?.secondary?.percent_left)}
               </p>
               <p className="card-meta limit-inline-meta">
@@ -1819,11 +2241,19 @@ export default function App() {
                 {formatRelativeReset(limits?.secondary?.reset_at)}
               </p>
             </div>
+            <div className="limit-progress" aria-hidden="true">
+              <div
+                className="limit-progress-fill"
+                style={{ width: `${secondaryLimitPercent}%` }}
+              />
+            </div>
             <p className="card-meta card-meta-compact">
               <span className="limit-inline">Messages</span>{" "}
-              {formatNumber(limitCurrent?.secondary?.message_count)}{" "}
+              {formatNumber(limitCurrent?.secondary?.message_count)}
+              <span className="meta-sep">•</span>
               <span className="limit-inline">Tokens</span>{" "}
-              {formatNumber(limitCurrent?.secondary?.total_tokens)}{" "}
+              {formatNumber(limitCurrent?.secondary?.total_tokens)}
+              <span className="meta-sep">•</span>
               <span className="limit-inline">Cost</span>{" "}
               {formatCurrency(limitCurrent?.secondary?.total_cost_usd)}
             </p>
@@ -1833,54 +2263,56 @@ export default function App() {
           (limitWindowRows.length === 0 ? (
             <p className="note">No 7-day reset windows captured yet.</p>
           ) : (
-            <div className="limits-table-scroll">
-              <div className="limits-table">
-                <div className="limits-row limits-header">
-                  <span>Window</span>
-                  <span>Tokens</span>
-                  <span>Cost</span>
-                  <span>Messages</span>
-                  <span>Change</span>
+            <div className="limits-details">
+              <div className="limits-table-scroll">
+                <div className="limits-table">
+                  <div className="limits-row limits-header">
+                    <span>Window</span>
+                    <span>Tokens</span>
+                    <span>Cost</span>
+                    <span>Messages</span>
+                    <span>Change</span>
+                  </div>
+                  {limitWindowRows.map((window) => {
+                    const startLabel = window.window_start
+                      ? formatBucketLabel(window.window_start)
+                      : "—";
+                    const endLabel = formatBucketLabel(window.window_end);
+                    const now = Date.now();
+                    const startMs = window.window_start
+                      ? new Date(window.window_start).getTime()
+                      : Number.NaN;
+                    const endMs = new Date(window.window_end).getTime();
+                    const isCurrent =
+                      !Number.isNaN(endMs) &&
+                      (Number.isNaN(startMs) ? now < endMs : now >= startMs && now < endMs);
+                    const deltaLabel =
+                      window.delta === null || window.delta === undefined
+                        ? "—"
+                        : `${window.delta >= 0 ? "+" : ""}${window.delta.toFixed(1)}%`;
+                    const deltaClass =
+                      window.delta === null || window.delta === undefined
+                        ? ""
+                        : window.delta < 0
+                          ? "neg"
+                          : "pos";
+                    return (
+                      <div
+                        key={`${window.window_end}-${window.window_start ?? "none"}`}
+                        className={`limits-row ${window.complete ? "" : "incomplete"}`}
+                      >
+                        <span>
+                          {startLabel} → {endLabel}
+                          {isCurrent && <span className="limit-badge">Current</span>}
+                        </span>
+                        <span>{formatNumber(window.total_tokens)}</span>
+                        <span>{formatCurrency(window.total_cost_usd)}</span>
+                        <span>{formatNumber(window.message_count)}</span>
+                        <span className={deltaClass}>{deltaLabel}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                {limitWindowRows.map((window) => {
-                  const startLabel = window.window_start
-                    ? formatBucketLabel(window.window_start)
-                    : "—";
-                  const endLabel = formatBucketLabel(window.window_end);
-                  const now = Date.now();
-                  const startMs = window.window_start
-                    ? new Date(window.window_start).getTime()
-                    : Number.NaN;
-                  const endMs = new Date(window.window_end).getTime();
-                  const isCurrent =
-                    !Number.isNaN(endMs) &&
-                    (Number.isNaN(startMs) ? now < endMs : now >= startMs && now < endMs);
-                  const deltaLabel =
-                    window.delta === null || window.delta === undefined
-                      ? "—"
-                      : `${window.delta >= 0 ? "+" : ""}${window.delta.toFixed(1)}%`;
-                  const deltaClass =
-                    window.delta === null || window.delta === undefined
-                      ? ""
-                      : window.delta < 0
-                        ? "neg"
-                        : "pos";
-                  return (
-                    <div
-                      key={`${window.window_end}-${window.window_start ?? "none"}`}
-                      className={`limits-row ${window.complete ? "" : "incomplete"}`}
-                    >
-                      <span>
-                        {startLabel} → {endLabel}
-                        {isCurrent && <span className="limit-badge">Current</span>}
-                      </span>
-                      <span>{formatNumber(window.total_tokens)}</span>
-                      <span>{formatCurrency(window.total_cost_usd)}</span>
-                      <span>{formatNumber(window.message_count)}</span>
-                      <span className={deltaClass}>{deltaLabel}</span>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           ))}
@@ -1917,7 +2349,7 @@ export default function App() {
                   {loading ? "Loading token history..." : "No token activity in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={tokensSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis
@@ -1961,7 +2393,7 @@ export default function App() {
                   {loading ? "Loading cost history..." : "No cost activity in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={costSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis
@@ -2029,7 +2461,7 @@ export default function App() {
                   {loading ? "Loading breakdown..." : "No cost data in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={220}>
                   <BarChart
                     data={costChartData}
                     margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
@@ -2224,7 +2656,7 @@ export default function App() {
                   {loading ? "Loading breakdown..." : "No cost data in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={220}>
                   <BarChart
                     data={costSeries}
                     margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
