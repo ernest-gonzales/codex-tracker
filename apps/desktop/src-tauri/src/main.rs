@@ -58,7 +58,6 @@ struct SettingsResponse {
     legacy_backup_dir: Option<String>,
 }
 
-
 #[tauri::command]
 fn summary(
     state: State<DesktopState>,
@@ -73,7 +72,9 @@ fn summary(
 }
 
 #[tauri::command]
-fn context_latest(state: State<DesktopState>) -> Result<Option<tracker_core::ContextStatus>, String> {
+fn context_latest(
+    state: State<DesktopState>,
+) -> Result<Option<tracker_core::ContextStatus>, String> {
     let mut db = open_db(&state)?;
     let home = require_active_home(&mut db)?;
     db.latest_context(home.id).map_err(to_error)
@@ -256,12 +257,17 @@ fn limits_7d_windows(
 }
 
 #[tauri::command]
-fn ingest(state: State<DesktopState>) -> Result<IngestStats, String> {
-    let mut db = open_db(&state)?;
-    let home = require_active_home(&mut db)?;
-    let stats = ingest::ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_error)?;
-    db.update_event_costs(home.id).map_err(to_error)?;
-    Ok(stats)
+async fn ingest(state: State<'_, DesktopState>) -> Result<IngestStats, String> {
+    let app_state = state.app_state.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut db = app_state.open_db().map_err(to_error)?;
+        let home = require_active_home(&mut db)?;
+        let stats = ingest::ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_error)?;
+        db.update_event_costs(home.id).map_err(to_error)?;
+        Ok(stats)
+    })
+    .await
+    .map_err(|err| format!("ingest task: {}", err))?
 }
 
 #[tauri::command]
@@ -440,7 +446,7 @@ fn to_error(err: impl std::fmt::Display) -> String {
 }
 
 fn boxed_err(message: impl Into<String>) -> Box<dyn std::error::Error> {
-    Box::new(std::io::Error::new(std::io::ErrorKind::Other, message.into()))
+    Box::new(std::io::Error::other(message.into()))
 }
 
 fn migrate_legacy_storage(
@@ -524,9 +530,12 @@ pub fn run() {
             if let Err(err) = app_state.sync_pricing_defaults() {
                 eprintln!("failed to sync pricing defaults: {}", err);
             }
-            if let Err(err) = app_state.refresh_data() {
-                eprintln!("failed to refresh data on startup: {}", err);
-            }
+            let refresh_state = app_state.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(err) = refresh_state.refresh_data() {
+                    eprintln!("failed to refresh data on startup: {}", err);
+                }
+            });
             app.manage(DesktopState {
                 app_state,
                 app_data_dir,
