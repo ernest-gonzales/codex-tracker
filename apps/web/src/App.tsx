@@ -305,7 +305,25 @@ function formatDateTimeLocal(value?: string | null) {
   return new Date(parsed.getTime() - offset).toISOString().slice(0, 16);
 }
 
+function formatDateOnlyLocal(value?: string | null) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  const offset = parsed.getTimezoneOffset() * 60 * 1000;
+  return new Date(parsed.getTime() - offset).toISOString().slice(0, 10);
+}
+
 function parseDateTimeLocal(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toISOString();
+}
+
+function parseDateOnlyLocal(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
@@ -1446,10 +1464,10 @@ export default function App() {
                   <div className="note">No pricing rules match this filter.</div>
                 ) : (
                   <div className="table-wrap">
-                    <table>
+                    <table className="pricing-table">
                       <thead>
                         <tr>
-                          <th>Model Pattern</th>
+                          <th className="pricing-model-col">Model Pattern</th>
                           <th>Input / 1M</th>
                           <th>Cached / 1M</th>
                           <th>Output / 1M</th>
@@ -1460,7 +1478,7 @@ export default function App() {
                       </thead>
                       <tbody>
                         {pricingRows.map(({ rule, index }) => {
-                          const effectiveToValue = formatDateTimeLocal(rule.effective_to);
+                          const effectiveToValue = formatDateOnlyLocal(rule.effective_to);
                           const rowIssues = pricingIssueMap.get(index) ?? [];
                           const hasModelError = rowIssues.some(
                             (issue) => issue.field === "model_pattern"
@@ -1479,9 +1497,9 @@ export default function App() {
                           );
                           return (
                             <tr key={rule.id ?? `${rule.model_pattern}-${index}`}>
-                              <td>
+                              <td className="pricing-model-cell">
                                 <input
-                                  className={`input ${hasModelError ? "input-error" : ""}`}
+                                  className={`input pricing-model ${hasModelError ? "input-error" : ""}`}
                                   value={rule.model_pattern}
                                   onChange={(event) =>
                                     updatePricingRule(index, { model_pattern: event.target.value })
@@ -1493,6 +1511,7 @@ export default function App() {
                                   className={`input ${hasInputError ? "input-error" : ""}`}
                                   type="number"
                                   step="0.0001"
+                                  inputMode="decimal"
                                   value={rule.input_per_1m}
                                   onChange={(event) =>
                                     updatePricingRule(index, {
@@ -1509,6 +1528,7 @@ export default function App() {
                                   className={`input ${hasCachedError ? "input-error" : ""}`}
                                   type="number"
                                   step="0.0001"
+                                  inputMode="decimal"
                                   value={rule.cached_input_per_1m}
                                   onChange={(event) =>
                                     updatePricingRule(index, {
@@ -1525,6 +1545,7 @@ export default function App() {
                                   className={`input ${hasOutputError ? "input-error" : ""}`}
                                   type="number"
                                   step="0.0001"
+                                  inputMode="decimal"
                                   value={rule.output_per_1m}
                                   onChange={(event) =>
                                     updatePricingRule(index, {
@@ -1539,11 +1560,11 @@ export default function App() {
                               <td>
                                 <input
                                   className={`input ${hasRangeError ? "input-error" : ""}`}
-                                  type="datetime-local"
-                                  value={formatDateTimeLocal(rule.effective_from)}
+                                  type="date"
+                                  value={formatDateOnlyLocal(rule.effective_from)}
                                   onChange={(event) =>
                                     updatePricingRule(index, {
-                                      effective_from: parseDateTimeLocal(event.target.value)
+                                      effective_from: parseDateOnlyLocal(event.target.value)
                                     })
                                   }
                                 />
@@ -1551,12 +1572,12 @@ export default function App() {
                               <td>
                                 <input
                                   className={`input ${hasRangeError ? "input-error" : ""}`}
-                                  type="datetime-local"
+                                  type="date"
                                   value={effectiveToValue}
                                   onChange={(event) =>
                                     updatePricingRule(index, {
                                       effective_to: event.target.value
-                                        ? parseDateTimeLocal(event.target.value)
+                                        ? parseDateOnlyLocal(event.target.value)
                                         : null
                                     })
                                   }

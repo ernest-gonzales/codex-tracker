@@ -395,6 +395,7 @@ h1.brand-name {
   padding: 6px;
   color: var(--text);
   box-shadow: var(--shadow);
+  font-size: 12px;
 }
 
 .select-viewport {
@@ -414,13 +415,14 @@ h1.brand-name {
 }
 
 .select-item {
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  font-size: 12px;
 }
 
 .select-item:hover,
@@ -958,6 +960,33 @@ tbody td {
   gap: 10px;
 }
 
+.pricing-table {
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.pricing-table tbody td {
+  background: rgba(17, 26, 56, 0.65);
+}
+
+.pricing-table tbody tr td:first-child {
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.pricing-table tbody tr td:last-child {
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.pricing-model-col {
+  min-width: 200px;
+}
+
+.pricing-model-cell {
+  min-width: 220px;
+}
+
 .pricing-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1203,6 +1232,24 @@ tbody td {
   color: var(--text);
   padding: 8px 10px;
   font-size: 13px;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.pricing-model {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #e9f1ff;
+  background: rgba(125, 249, 255, 0.08);
+  border-color: rgba(125, 249, 255, 0.25);
 }
 
 .input-hint {

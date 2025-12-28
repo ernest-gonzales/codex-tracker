@@ -8,10 +8,10 @@
       {
         "label": "main",
         "title": "Codex Tracker",
-        "width": 1280,
-        "height": 900,
-        "minWidth": 1024,
-        "minHeight": 720
+        "width": 1380,
+        "height": 980,
+        "minWidth": 1180,
+        "minHeight": 820
       }
     ]
   },
