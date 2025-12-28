@@ -4,9 +4,123 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Codex Tracker</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: "SF Pro Text", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+        color: #f6f3ff;
+        background: radial-gradient(circle at top left, #1d2c63 0%, #0b1024 55%) fixed,
+          radial-gradient(circle at 30% 20%, #282d5f 0%, transparent 40%) fixed,
+          linear-gradient(120deg, #0b1024 0%, #111a38 100%) fixed;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      .boot {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px 16px 32px;
+      }
+      .boot-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .boot-mark {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: linear-gradient(140deg, rgba(125, 249, 255, 0.4), rgba(17, 26, 56, 0));
+        border: 1px solid rgba(125, 249, 255, 0.35);
+        box-shadow: 0 16px 30px rgba(5, 10, 30, 0.4);
+      }
+      .boot-title {
+        font-family: "Iowan Old Style", "Palatino", "Times New Roman", ui-serif, serif;
+        font-size: 28px;
+        letter-spacing: 0.02em;
+      }
+      .boot-subtitle {
+        font-size: 12px;
+        color: rgba(169, 180, 232, 0.85);
+        margin-top: 4px;
+      }
+      .boot-grid {
+        margin-top: 18px;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+      .boot-card {
+        background: rgba(17, 26, 56, 0.7);
+        border: 1px solid rgba(47, 60, 109, 0.7);
+        border-radius: 16px;
+        padding: 14px;
+      }
+      .boot-line {
+        display: block;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.08) 0%,
+          rgba(255, 255, 255, 0.18) 50%,
+          rgba(255, 255, 255, 0.08) 100%
+        );
+        background-size: 200% 100%;
+        animation: boot-shimmer 1.4s ease infinite;
+      }
+      .boot-line-lg {
+        width: 140px;
+        height: 16px;
+      }
+      .boot-line-sm {
+        width: 90px;
+        height: 8px;
+        margin-top: 8px;
+      }
+      @keyframes boot-shimmer {
+        0% {
+          background-position: 0 0;
+        }
+        100% {
+          background-position: 200% 0;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" role="status" aria-live="polite">
+        <div class="boot-header">
+          <div class="boot-mark" aria-hidden="true"></div>
+          <div>
+            <div class="boot-title">Codex Tracker</div>
+            <div class="boot-subtitle">Loading dashboard...</div>
+          </div>
+        </div>
+        <div class="boot-grid" aria-hidden="true">
+          <div class="boot-card">
+            <span class="boot-line boot-line-lg"></span>
+            <span class="boot-line boot-line-sm"></span>
+          </div>
+          <div class="boot-card">
+            <span class="boot-line boot-line-lg"></span>
+            <span class="boot-line boot-line-sm"></span>
+          </div>
+          <div class="boot-card">
+            <span class="boot-line boot-line-lg"></span>
+            <span class="boot-line boot-line-sm"></span>
+          </div>
+          <div class="boot-card">
+            <span class="boot-line boot-line-lg"></span>
+            <span class="boot-line boot-line-sm"></span>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
