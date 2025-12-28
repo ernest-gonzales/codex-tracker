@@ -1644,6 +1644,7 @@ input[type="number"] {
   .hero-top {
     flex-direction: column;
     align-items: flex-start;
+    gap: 6px;
   }
 
   .hero-copy {
@@ -1653,6 +1654,19 @@ input[type="number"] {
   .range-toolbar {
     width: 100%;
     max-width: none;
+    gap: 4px;
+  }
+
+  .custom-range-toolbar.is-hidden {
+    display: none;
+  }
+
+  .hero {
+    gap: 6px;
+  }
+
+  .hero-metrics {
+    margin-top: 0;
   }
 
   .brand {

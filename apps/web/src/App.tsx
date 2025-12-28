@@ -2003,8 +2003,6 @@ export default function App() {
                       {!customEnd && <span className="date-placeholder">End date</span>}
                     </div>
                   </div>
-                </div>
-                <div className="range-toolbar-row range-toolbar-row-refresh">
                   <div className="range-group">
                     <span className="label">Auto refresh</span>
                     <SelectField
