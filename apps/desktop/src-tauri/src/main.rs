@@ -118,7 +118,10 @@ fn open_logs_dir(app: tauri::AppHandle, state: State<DesktopState>) -> Result<()
     if !path.exists() {
         return Err(format!("Codex home not found at {}", path.display()));
     }
-    app.opener().open_path(path, None::<&str>).map_err(to_error)
+    let path_string = path.to_string_lossy().to_string();
+    app.opener()
+        .open_path(path_string, None::<&str>)
+        .map_err(to_error)
 }
 
 #[tauri::command]

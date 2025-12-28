@@ -46,6 +46,7 @@
 ### Rust-specific rules
 
 - Use `cargo fmt` and `cargo clippy` when relevant
+- After Rust changes, run `cargo check` for the affected crate(s) (use `-p codex_tracker_desktop` when touching the desktop app) to catch compile errors before committing.
 - Prefer explicit error handling (`thiserror`, `anyhow`)
 - SQLite migrations must be idempotent
 - Avoid breaking public APIs without updating version notes
