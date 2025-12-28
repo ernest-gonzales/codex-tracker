@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use chrono::{Duration, SecondsFormat, Utc};
 use ingest::IngestStats;
 use serde::Serialize;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tracker_app::{AppState, RangeParams};
 use tracker_core::{
     ActiveSession, CodexHome, ContextPressureStats, ModelBreakdown, ModelCostBreakdown,
@@ -531,7 +531,7 @@ pub fn run() {
                 eprintln!("failed to sync pricing defaults: {}", err);
             }
             let refresh_state = app_state.clone();
-            let app_handle = app.handle();
+            let app_handle = app.handle().clone();
             tauri::async_runtime::spawn_blocking(move || {
                 let result = (|| {
                     let mut db = refresh_state.open_db().map_err(to_error)?;
