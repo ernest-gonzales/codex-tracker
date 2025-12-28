@@ -32,16 +32,16 @@ bundled as a Tauri desktop app. Everything runs on-device and stores data in a l
 
 Download the latest notarized DMG from GitHub Releases:
 
-`https://github.com/<org>/codex-tracker/releases`
+`https://github.com/ernest-gonzales/codex-tracker/releases`
 
 ### Homebrew (cask)
 
 ```bash
-brew tap <org>/homebrew-codex-tracker
+brew tap ernest-gonzales/homebrew-codex-tracker
 brew install --cask codex-tracker
 ```
 
-Note: replace `<org>` with the GitHub org/user that hosts the releases and tap.
+Note: update the tap name if you host the cask elsewhere.
 
 ### Gatekeeper note
 
