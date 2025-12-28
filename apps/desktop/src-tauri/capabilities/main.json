@@ -1,0 +1,18 @@
+{
+  "identifier": "main-capability",
+  "description": "Desktop window permissions for dialogs, path checks, and reveal actions.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "$HOME/**" }, { "path": "$APPDATA/**" }]
+    },
+    "opener:allow-reveal-item-in-dir"
+  ]
+}

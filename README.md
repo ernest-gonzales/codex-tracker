@@ -1,60 +1,105 @@
 # Codex Tracker
 
-Local-only Codex CLI usage tracker (tokens + cost) with a Rust backend and SQLite storage.
+**Codex Tracker** is a **local-only desktop application** for analyzing **Codex CLI usage**
+(tokens and cost). It runs entirely on your machine, stores data in a local SQLite database,
+and does **not** require any account, cloud service, or remote backend.
 
-## Requirements
-- Rust toolchain (stable)
+The application is built with:
 
-## Quick start
+- **Rust** (backend, ingestion, analytics)
+- **React + TypeScript** (UI)
+- **Tauri** (desktop shell)
+
+---
+
+## Key principles
+
+- **Local-only by design**  
+  Everything runs on your device. No telemetry, no cloud sync, no external services.
+
+- **Desktop-first**  
+  There is no web app deployment. The UI is bundled into the desktop app.
+
+- **Developer-focused**  
+  Optimized for long-running sessions, dense information, and predictable behavior.
+
+---
+
+## Features
+
+- Token and cost totals for a selected time range (and all-time)
+- Time-series charts for tokens and cost
+- Breakdown by model and reasoning effort (when available)
+- Active sessions with context window pressure
+- Usage limits (5h / 7d) derived from Codex logs
+- Multiple Codex homes (switch between different log directories)
+- Editable pricing rules with automatic cost recomputation
+
+---
+
+## Screenshots
+
+### Dashboard overview
+
+![Codex Tracker dashboard](docs/screenshots/dashboard.png)
+
+### Cost breakdown
+
+![Codex Tracker cost breakdown](docs/screenshots/cost.png)
+
+### Token and cost trends
+
+![Codex Tracker token and cost trends](docs/screenshots/trends.png)
+
+---
+
+## Architecture overview
+
+### Rust workspace
+
+- `crates/core/`  
+  Shared domain types, ranges, bucketing, and pricing math
+
+- `crates/db/`  
+  SQLite schema, migrations, and query layer
+
+- `crates/ingest/`  
+  Incremental discovery and ingestion of Codex CLI logs
+
+- `crates/app/`  
+  Application services: ingestion orchestration, analytics, defaults
+
+### Desktop application
+
+- `apps/web/`  
+  React + TypeScript UI (Vite, Tailwind, Recharts)
+
+- `apps/desktop/src-tauri/`  
+  Tauri shell and IPC commands bridging UI and Rust backend
+
+The UI is built once and loaded directly by the Tauri shell.
+There is **no runtime web server**.
+
+---
+
+## Installation (macOS)
+
+### Option 1: GitHub Releases (recommended)
+
+Download the latest DMG from GitHub Releases:
+
+https://github.com/ernest-gonzales/codex-tracker/releases
+
+Open the DMG and drag **Codex Tracker** to Applications.
+
+### Option 2: Homebrew (cask)
+
 ```bash
-cargo run -p tracker_server
+brew tap ernest-gonzales/homebrew-tap
+brew install --cask codex-tracker
 ```
 
-The server binds to `127.0.0.1:3030` and stores data in
-`~/.codex/codex-tracker.sqlite` by default.
+### Gatekeeper note
 
-## Frontend
-```bash
-cd apps/web
-npm install
-npm run build
-```
-
-Then run the server (`cargo run -p tracker_server`) and open `http://127.0.0.1:3030`.
-
-## Build a runnable bundle
-```bash
-./scripts/build-bundle.sh
-```
-
-This creates `bundle/codex-tracker` plus `bundle/dist/` for the frontend assets.
-Run the server with:
-
-```bash
-./bundle/codex-tracker
-```
-
-To override the frontend path, set `CODEX_TRACKER_DIST` to a custom directory.
-
-## API notes
-- Trigger ingestion: `POST /api/ingest/run`
-- Summary: `GET /api/summary?range=last7days` or `GET /api/summary?start=<rfc3339>` (includes token and cost breakdowns)
-- Timeseries: `GET /api/timeseries?range=last7days&bucket=day&metric=tokens`
-- Model breakdown: `GET /api/breakdown?range=last7days`
-- Token breakdown by model: `GET /api/breakdown/tokens?range=last7days`
-- Cost breakdown by model + token type: `GET /api/breakdown/costs?range=last7days`
-- Events: `GET /api/events?range=last7days&limit=200`
-- All time range: `range=alltime`
-- Settings: `GET/PUT /api/settings` (`codex_home`)
-- Pricing rules: `GET/PUT /api/pricing` (includes cached input rate, prices are per 1M tokens)
-- Recompute costs: `POST /api/pricing/recompute`
-
-## Pricing assumptions
-- `reasoning_output_tokens` are treated as a subset of `output_tokens` for cost calculation (no double billing).
-- Pricing rules are expressed in USD per 1M tokens (input, cached input, output).
-- If you update pricing rules or cost logic, run `POST /api/pricing/recompute` to refresh stored costs.
-
-## Development
-```bash
-cargo test
-```
+Because releases are **not notarized** (yet), macOS Gatekeeper will likely show a warning on first launch.
+This is expected for unsigned distribution.
