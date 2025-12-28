@@ -206,7 +206,5 @@ pub fn refresh_data(path: &Path) -> Result<(), String> {
         .map_err(|err| format!("ensure active home: {}", err))?;
     ingest::ingest_codex_home(&mut db, Path::new(&home.path))
         .map_err(|err| format!("ingest: {}", err))?;
-    db.update_event_costs(home.id)
-        .map_err(|err| format!("update costs: {}", err))?;
     Ok(())
 }

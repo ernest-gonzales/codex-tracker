@@ -467,7 +467,6 @@ async fn ingest(
     let mut db = open_db(&state)?;
     let home = require_active_home(&mut db)?;
     let stats = ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_api_error)?;
-    db.update_event_costs(home.id).map_err(to_api_error)?;
     Ok(Json(stats))
 }
 

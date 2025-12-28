@@ -10,8 +10,8 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tracker_core::{
-    ContextStatus, MessageEvent, UsageEvent, UsageLimitSnapshot, UsageTotals,
-    session_id_from_source,
+    ContextStatus, MessageEvent, PricingRule, UsageEvent, UsageLimitSnapshot, UsageTotals,
+    compute_cost_breakdown, model_matches_pattern, session_id_from_source,
 };
 use tracker_db::{Db, IngestCursor};
 use walkdir::WalkDir;
@@ -161,6 +161,55 @@ fn extract_model(value: &Value) -> Option<String> {
 
 fn parse_json_line(line: &str) -> Option<Value> {
     serde_json::from_str(line).ok()
+}
+
+fn delta_usage(prev: Option<&UsageTotals>, current: UsageTotals) -> UsageTotals {
+    if let Some(prev) = prev {
+        if current.total_tokens >= prev.total_tokens {
+            UsageTotals {
+                input_tokens: current.input_tokens.saturating_sub(prev.input_tokens),
+                cached_input_tokens: current
+                    .cached_input_tokens
+                    .saturating_sub(prev.cached_input_tokens),
+                output_tokens: current.output_tokens.saturating_sub(prev.output_tokens),
+                reasoning_output_tokens: current
+                    .reasoning_output_tokens
+                    .saturating_sub(prev.reasoning_output_tokens),
+                total_tokens: current.total_tokens.saturating_sub(prev.total_tokens),
+            }
+        } else {
+            current
+        }
+    } else {
+        current
+    }
+}
+
+fn rule_matches_event(rule: &PricingRule, model: &str, ts: &str) -> bool {
+    if !model_matches_pattern(model, &rule.model_pattern) {
+        return false;
+    }
+    if rule.effective_from.as_str() > ts {
+        return false;
+    }
+    if let Some(ref end) = rule.effective_to
+        && ts >= end.as_str()
+    {
+        return false;
+    }
+    true
+}
+
+fn compute_cost_for_event(
+    pricing: &[PricingRule],
+    event: &UsageEvent,
+    delta: UsageTotals,
+) -> Option<f64> {
+    let rule = pricing
+        .iter()
+        .filter(|rule| rule_matches_event(rule, &event.model, &event.ts))
+        .max_by(|a, b| a.effective_from.cmp(&b.effective_from))?;
+    Some(compute_cost_breakdown(delta, rule).total_cost_usd)
 }
 
 fn extract_effort_if_turn_context(value: &Value) -> Option<String> {
@@ -826,6 +875,8 @@ fn looks_like_jsonl(file: &mut File) -> io::Result<bool> {
 
 pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> {
     let mut stats = IngestStats::default();
+    let pricing = db.list_pricing_rules()?;
+    let has_pricing = !pricing.is_empty();
     let timing_enabled = env::var("CODEX_TRACKER_INGEST_TIMING").is_ok();
     let ingest_start = Instant::now();
     let mut parse_total = StdDuration::ZERO;
@@ -872,8 +923,12 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
             .ok()
             .map(|time| DateTime::<Utc>::from(time).to_rfc3339());
         let cursor = db.get_cursor(home.id, &file_path)?;
-        let (start_offset, seed_model, seed_effort) = match cursor {
-            Some(ref cursor) if cursor.byte_offset <= file_len && inode == cursor.inode => (
+        let can_resume = matches!(
+            cursor.as_ref(),
+            Some(cursor) if cursor.byte_offset <= file_len && inode == cursor.inode
+        );
+        let (start_offset, seed_model, seed_effort) = match cursor.as_ref() {
+            Some(cursor) if can_resume => (
                 cursor.byte_offset,
                 cursor.last_model.clone(),
                 cursor.last_effort.clone(),
@@ -884,6 +939,11 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
             stats.files_skipped += 1;
             continue;
         }
+        let mut prev_usage = if can_resume {
+            db.last_usage_totals_for_source(home.id, &file_path)?
+        } else {
+            None
+        };
         let file_start = Instant::now();
         let mut file = match File::open(path) {
             Ok(file) => file,
@@ -946,7 +1006,7 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                     if let Some(effort) = extract_effort_if_turn_context(&obj) {
                         current_effort = Some(effort);
                     }
-                    if let Some(event) = extract_usage_event_from_value(
+                    if let Some(mut event) = extract_usage_event_from_value(
                         &obj,
                         line,
                         &file_path,
@@ -954,6 +1014,13 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                         &session_id,
                         current_effort.as_deref(),
                     ) {
+                        let delta = delta_usage(prev_usage.as_ref(), event.usage);
+                        if has_pricing {
+                            if let Some(cost) = compute_cost_for_event(&pricing, &event, delta) {
+                                event.cost_usd = Some(cost);
+                            }
+                        }
+                        prev_usage = Some(event.usage);
                         events.push(event);
                     }
                     if let Some(event) =
@@ -1379,6 +1446,50 @@ mod tests {
         let stats = ingest_codex_home(&mut db, dir.path()).expect("ingest");
         assert_eq!(stats.events_inserted, 1);
         assert!(stats.files_skipped >= 1);
+    }
+
+    #[test]
+    fn ingest_sets_cost_on_insert() {
+        let dir = tempdir().expect("tempdir");
+        let db_path = dir.path().join("ingest.sqlite");
+        let mut db = Db::open(&db_path).expect("open db");
+        db.migrate().expect("migrate");
+        db.replace_pricing_rules(&[tracker_core::PricingRuleInput {
+            model_pattern: "gpt-test".to_string(),
+            input_per_1m: 1750.0,
+            cached_input_per_1m: 175.0,
+            output_per_1m: 14000.0,
+            effective_from: "2025-01-01T00:00:00Z".to_string(),
+            effective_to: None,
+        }])
+        .expect("pricing");
+
+        let log_path = dir.path().join("rollout-2025-12-19T21-31-36.jsonl");
+        fs::write(
+            &log_path,
+            r#"{"timestamp":"2025-12-19T19:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-test","total_token_usage":{"input_tokens":1000,"cached_input_tokens":200,"output_tokens":300,"reasoning_output_tokens":0,"total_tokens":1500},"model_context_window":100}}}"#,
+        )
+        .expect("write json");
+
+        ingest_codex_home(&mut db, dir.path()).expect("ingest");
+        let home = db
+            .get_home_by_path(dir.path().to_string_lossy().as_ref())
+            .expect("get home")
+            .expect("home");
+        let range = TimeRange {
+            start: "2025-12-19T18:40:00Z".to_string(),
+            end: "2025-12-19T20:00:00Z".to_string(),
+        };
+        let events = db
+            .list_usage_events(&range, None, 10, 0, home.id)
+            .expect("list events");
+        assert_eq!(events.len(), 1);
+        let cost = events[0].cost_usd.expect("cost");
+        let expected_input = (800.0 / 1_000_000.0) * 1750.0;
+        let expected_cached = (200.0 / 1_000_000.0) * 175.0;
+        let expected_output = (300.0 / 1_000_000.0) * 14000.0;
+        let expected_total = expected_input + expected_cached + expected_output;
+        assert!((cost - expected_total).abs() < 1e-9);
     }
 
     #[test]

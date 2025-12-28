@@ -1175,6 +1175,36 @@ impl Db {
         Ok(updated)
     }
 
+    pub fn last_usage_totals_for_source(
+        &self,
+        codex_home_id: i64,
+        source: &str,
+    ) -> Result<Option<UsageTotals>> {
+        self.conn
+            .query_row(
+                r#"
+                SELECT input_tokens, cached_input_tokens, output_tokens,
+                       reasoning_output_tokens, total_tokens
+                FROM usage_event
+                WHERE codex_home_id = ?1 AND source = ?2
+                ORDER BY ts DESC
+                LIMIT 1
+                "#,
+                params![codex_home_id, source],
+                |row| {
+                    Ok(UsageTotals {
+                        input_tokens: row.get::<_, i64>(0)? as u64,
+                        cached_input_tokens: row.get::<_, i64>(1)? as u64,
+                        output_tokens: row.get::<_, i64>(2)? as u64,
+                        reasoning_output_tokens: row.get::<_, i64>(3)? as u64,
+                        total_tokens: row.get::<_, i64>(4)? as u64,
+                    })
+                },
+            )
+            .optional()
+            .map_err(DbError::from)
+    }
+
     pub fn get_cursor(&self, codex_home_id: i64, file_path: &str) -> Result<Option<IngestCursor>> {
         let mut stmt = self.conn.prepare(
             r#"

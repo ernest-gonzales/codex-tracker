@@ -263,7 +263,6 @@ async fn ingest(state: State<'_, DesktopState>) -> Result<IngestStats, String> {
         let mut db = app_state.open_db().map_err(to_error)?;
         let home = require_active_home(&mut db)?;
         let stats = ingest::ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_error)?;
-        db.update_event_costs(home.id).map_err(to_error)?;
         Ok(stats)
     })
     .await
@@ -538,7 +537,6 @@ pub fn run() {
                     let home = require_active_home(&mut db)?;
                     let stats =
                         ingest::ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_error)?;
-                    db.update_event_costs(home.id).map_err(to_error)?;
                     Ok::<IngestStats, String>(stats)
                 })();
                 match result {
