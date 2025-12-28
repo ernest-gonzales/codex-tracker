@@ -972,7 +972,7 @@ export default function App() {
     }
   }
 
-  async function handleRevealPath(value?: string) {
+  async function handleRevealPath(value?: string, isDir = false) {
     if (!value) {
       return;
     }
@@ -981,8 +981,13 @@ export default function App() {
       return;
     }
     try {
-      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
-      await revealItemInDir(value);
+      if (isDir) {
+        const { openPath } = await import("@tauri-apps/plugin-opener");
+        await openPath(value);
+      } else {
+        const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+        await revealItemInDir(value);
+      }
     } catch (err) {
       setToast({
         message: err instanceof Error ? err.message : "Reveal failed",
@@ -1315,7 +1320,7 @@ export default function App() {
                         <button
                           className="button ghost small"
                           type="button"
-                          onClick={() => handleRevealPath(storageInfo?.appDataDir)}
+                          onClick={() => handleRevealPath(storageInfo?.appDataDir, true)}
                           disabled={!storageInfo?.appDataDir || !isTauriRuntime}
                         >
                           Reveal
@@ -1339,7 +1344,7 @@ export default function App() {
                         <button
                           className="button ghost small"
                           type="button"
-                          onClick={() => handleRevealPath(storageInfo?.dbPath)}
+                          onClick={() => handleRevealPath(storageInfo?.dbPath, false)}
                           disabled={!storageInfo?.dbPath || !isTauriRuntime}
                         >
                           Reveal
@@ -1363,7 +1368,7 @@ export default function App() {
                         <button
                           className="button ghost small"
                           type="button"
-                          onClick={() => handleRevealPath(storageInfo?.pricingDefaultsPath)}
+                          onClick={() => handleRevealPath(storageInfo?.pricingDefaultsPath, false)}
                           disabled={!storageInfo?.pricingDefaultsPath || !isTauriRuntime}
                         >
                           Reveal
@@ -1388,7 +1393,7 @@ export default function App() {
                           <button
                             className="button ghost small"
                             type="button"
-                            onClick={() => handleRevealPath(storageInfo?.legacyBackupDir ?? "")}
+                            onClick={() => handleRevealPath(storageInfo?.legacyBackupDir ?? "", true)}
                             disabled={!storageInfo?.legacyBackupDir || !isTauriRuntime}
                           >
                             Reveal
