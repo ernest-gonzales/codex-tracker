@@ -4341,6 +4341,8 @@ dependencies = [
  "ingest",
  "serde",
  "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
  "tracker_core",
  "tracker_db",
 ]
