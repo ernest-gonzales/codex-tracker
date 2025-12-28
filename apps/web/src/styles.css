@@ -470,6 +470,14 @@ h1.brand-name {
   border-radius: 9px;
 }
 
+.range-select {
+  width: 140px;
+}
+
+.refresh-select {
+  width: 170px;
+}
+
 .select-trigger,
 .select-native {
   background: var(--card);
@@ -632,7 +640,7 @@ h1.brand-name {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin-bottom: 8px;
 }
 
@@ -672,9 +680,9 @@ h1.brand-name {
 
 .card-value-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
 .card-meta-inline {
@@ -683,7 +691,6 @@ h1.brand-name {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   margin: 0;
-  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -758,6 +765,10 @@ h1.brand-name {
 
 .chart {
   height: 200px;
+}
+
+.cost-breakdown-chart {
+  margin-bottom: 10px;
 }
 
 .chart-empty {

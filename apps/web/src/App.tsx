@@ -1962,6 +1962,7 @@ export default function App() {
                       onValueChange={(value) => setRange(value as RangeValue)}
                       options={rangeOptions}
                       size="compact"
+                      className="range-select"
                       ariaLabel="Range"
                     />
                   </div>
@@ -2011,6 +2012,7 @@ export default function App() {
                       onValueChange={(value) => setAutoRefresh(value as AutoRefreshValue)}
                       options={autoRefreshOptions}
                       size="compact"
+                      className="refresh-select"
                       ariaLabel="Auto refresh"
                     />
                   </div>
@@ -2561,7 +2563,7 @@ export default function App() {
         </div>
         {costBreakdownTab === "model" ? (
           <>
-            <div className="chart">
+            <div className="chart cost-breakdown-chart">
               {costChartEmpty ? (
                 <div className="chart-empty">
                   {loading ? "Loading breakdown..." : "No cost data in this range."}
