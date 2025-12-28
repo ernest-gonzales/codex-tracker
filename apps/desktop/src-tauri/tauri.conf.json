@@ -23,6 +23,10 @@
     "active": true,
     "targets": "all",
     "category": "Utility",
-    "icon": ["icons/icon.png"]
+    "icon": ["icons/icon.png"],
+    "copyright": "Copyright (c) 2025 Codex Tracker",
+    "macOS": {
+      "hardenedRuntime": true
+    }
   }
 }

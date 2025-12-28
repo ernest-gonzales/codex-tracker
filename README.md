@@ -26,12 +26,37 @@ bundled as a Tauri desktop app. Everything runs on-device and stores data in a l
 - Desktop app:
   - `apps/desktop/src-tauri`: Tauri shell + IPC commands that host the React UI and call the Rust backend.
 
+## Install (macOS)
+
+### GitHub Releases
+
+Download the latest notarized DMG from GitHub Releases:
+
+`https://github.com/<org>/codex-tracker/releases`
+
+### Homebrew (cask)
+
+```bash
+brew tap <org>/homebrew-codex-tracker
+brew install --cask codex-tracker
+```
+
+Note: replace `<org>` with the GitHub org/user that hosts the releases and tap.
+
+### Gatekeeper note
+
+The release artifacts are signed and notarized. If macOS still blocks the app,
+use Finder to open it once (Control-click → Open) and the warning should not reappear.
+
 ## Quick start (from source)
 
 Requirements:
 
 - Rust stable (this repo uses Rust 2024 edition; use a recent stable toolchain).
 - Node.js + npm (recommended: current LTS).
+  - macOS: Xcode Command Line Tools are required for Tauri builds.
+  - Linux: Tauri depends on `webkit2gtk` and related system packages.
+  - Windows: install the Visual Studio C++ build tools (MSVC).
 
 Build the UI bundle once:
 
@@ -54,6 +79,40 @@ Single command (build UI + run desktop app):
 ```
 
 Note: the desktop app loads the built UI from `apps/web/dist` (no web server).
+
+## Build from source (release builds)
+
+### macOS
+
+```bash
+cargo install tauri-cli --locked --version 2.5.1
+
+cd apps/web
+npm ci
+npm run build
+
+cd ../desktop/src-tauri
+cargo tauri build
+```
+
+### Windows (high level)
+
+1. Install Rust with the MSVC toolchain and Visual Studio Build Tools.
+2. Install Node.js LTS.
+3. Install the Tauri CLI: `cargo install tauri-cli --locked --version 2.5.1`.
+4. Run:
+   - `npm ci && npm run build` in `apps/web`
+   - `cargo tauri build` in `apps/desktop/src-tauri`
+
+### Linux (high level)
+
+1. Install Rust + Node.js LTS.
+2. Install Tauri system deps (example for Debian/Ubuntu):
+   - `libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`
+3. Install the Tauri CLI: `cargo install tauri-cli --locked --version 2.5.1`.
+4. Run:
+   - `npm ci && npm run build` in `apps/web`
+   - `cargo tauri build` in `apps/desktop/src-tauri`
 
 ### Desktop tips
 
@@ -89,6 +148,10 @@ UI unit tests:
 cd apps/web
 npm test
 ```
+
+## Release process
+
+See `docs/release.md` for the macOS release, signing/notarization, and Homebrew cask flow.
 
 ## License
 
