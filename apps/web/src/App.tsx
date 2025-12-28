@@ -2585,7 +2585,14 @@ export default function App() {
                       labelFormatter={formatBucketLabel}
                       formatter={(value) => formatCurrency(value as number)}
                     />
-                    <Legend wrapperStyle={{ color: "var(--text)" }} />
+                    <Legend
+                      iconSize={10}
+                      wrapperStyle={{
+                        color: "var(--text)",
+                        fontSize: 10,
+                        lineHeight: "12px"
+                      }}
+                    />
                     <Bar dataKey="input" stackId="cost" fill="var(--chart-token)" />
                     <Bar dataKey="cached" stackId="cost" fill="var(--chart-cached)" />
                     <Bar dataKey="output" stackId="cost" fill="var(--chart-cost)" />
