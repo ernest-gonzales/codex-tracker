@@ -2,6 +2,7 @@ use std::fmt::Write;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::time::{Duration as StdDuration, Instant};
 use std::{env, fs};
 
 use chrono::{DateTime, SecondsFormat, Timelike, Utc};
@@ -764,6 +765,10 @@ fn is_log_path(path: &Path) -> bool {
 
 pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> {
     let mut stats = IngestStats::default();
+    let timing_enabled = env::var("CODEX_TRACKER_INGEST_TIMING").is_ok();
+    let ingest_start = Instant::now();
+    let mut parse_total = StdDuration::ZERO;
+    let mut db_total = StdDuration::ZERO;
     let codex_home_str = codex_home.to_string_lossy().to_string();
     let home = db.get_or_create_home(&codex_home_str, Some("Default"))?;
     db.update_home_last_seen(home.id)?;
@@ -818,6 +823,7 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
             stats.files_skipped += 1;
             continue;
         }
+        let file_start = Instant::now();
         let mut file = match File::open(path) {
             Ok(file) => file,
             Err(err) => {
@@ -887,6 +893,7 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                 }
             }
         }
+        let parse_done = Instant::now();
         stats.bytes_read += bytes_read;
         if !events.is_empty() {
             stats.events_inserted += db.insert_usage_events(home.id, &events)?;
@@ -910,6 +917,31 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
             last_effort: current_effort,
         };
         db.upsert_cursor(&new_cursor)?;
+        let file_done = Instant::now();
+        parse_total += parse_done.saturating_duration_since(file_start);
+        db_total += file_done.saturating_duration_since(parse_done);
+        if timing_enabled {
+            eprintln!(
+                "ingest file: {} read={}ms db={}ms events={} bytes={}",
+                new_cursor.file_path,
+                parse_done.duration_since(file_start).as_millis(),
+                file_done.duration_since(parse_done).as_millis(),
+                events.len(),
+                bytes_read
+            );
+        }
+    }
+    if timing_enabled {
+        eprintln!(
+            "ingest total: files={} scanned={} skipped={} events={} read={}ms db={}ms total={}ms",
+            stats.files_scanned + stats.files_skipped,
+            stats.files_scanned,
+            stats.files_skipped,
+            stats.events_inserted,
+            parse_total.as_millis(),
+            db_total.as_millis(),
+            ingest_start.elapsed().as_millis()
+        );
     }
     Ok(stats)
 }
