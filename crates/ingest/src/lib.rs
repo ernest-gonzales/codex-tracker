@@ -159,9 +159,20 @@ fn extract_model(value: &Value) -> Option<String> {
     .map(str::to_string)
 }
 
-fn extract_model_from_line(line: &str) -> Option<String> {
-    let obj: Value = serde_json::from_str(line).ok()?;
-    extract_model(&obj)
+fn parse_json_line(line: &str) -> Option<Value> {
+    serde_json::from_str(line).ok()
+}
+
+fn extract_effort_if_turn_context(value: &Value) -> Option<String> {
+    let payload_type = value
+        .get("payload")
+        .and_then(|payload| payload.get("type"))
+        .and_then(|value| value.as_str());
+    let top_type = value.get("type").and_then(|value| value.as_str());
+    if payload_type != Some("turn_context") && top_type != Some("turn_context") {
+        return None;
+    }
+    extract_effort(value)
 }
 
 fn extract_request_id(value: &Value) -> Option<String> {
@@ -232,19 +243,6 @@ fn extract_effort(value: &Value) -> Option<String> {
         }
     }
     None
-}
-
-fn extract_effort_from_line(line: &str) -> Option<String> {
-    let obj: Value = serde_json::from_str(line).ok()?;
-    let payload_type = obj
-        .get("payload")
-        .and_then(|payload| payload.get("type"))
-        .and_then(|value| value.as_str());
-    let top_type = obj.get("type").and_then(|value| value.as_str());
-    if payload_type != Some("turn_context") && top_type != Some("turn_context") {
-        return None;
-    }
-    extract_effort(&obj)
 }
 
 fn value_to_f64(value: &Value) -> Option<f64> {
@@ -398,11 +396,19 @@ fn limit_type_label(key: &str) -> Option<&'static str> {
     }
 }
 
+#[cfg(test)]
 fn extract_limit_snapshots_from_line(line: &str, source: &str) -> Vec<UsageLimitSnapshot> {
-    let obj: Value = match serde_json::from_str(line) {
-        Ok(value) => value,
-        Err(_) => return Vec::new(),
+    let Some(obj) = parse_json_line(line) else {
+        return Vec::new();
     };
+    extract_limit_snapshots_from_value(&obj, line, source)
+}
+
+fn extract_limit_snapshots_from_value(
+    obj: &Value,
+    line: &str,
+    source: &str,
+) -> Vec<UsageLimitSnapshot> {
     let rate_limits = match extract_rate_limits(&obj) {
         Some(value) => value,
         None => return Vec::new(),
@@ -438,12 +444,22 @@ fn extract_limit_snapshots_from_line(line: &str, source: &str) -> Vec<UsageLimit
     snapshots
 }
 
+#[cfg(test)]
 fn extract_message_event_from_line(
     line: &str,
     source: &str,
     session_id: &str,
 ) -> Option<MessageEvent> {
-    let obj: Value = serde_json::from_str(line).ok()?;
+    let obj = parse_json_line(line)?;
+    extract_message_event_from_value(&obj, line, source, session_id)
+}
+
+fn extract_message_event_from_value(
+    obj: &Value,
+    line: &str,
+    source: &str,
+    session_id: &str,
+) -> Option<MessageEvent> {
     let top_type = obj.get("type").and_then(|value| value.as_str());
     let (payload_type, info) = if top_type == Some("event_msg") {
         let payload = obj.get("payload")?;
@@ -451,7 +467,7 @@ fn extract_message_event_from_line(
         let info = payload.get("info").unwrap_or(payload);
         (payload_type, info)
     } else {
-        (top_type, &obj)
+        (top_type, obj)
     };
     if payload_type != Some("user_message") && payload_type != Some("message") {
         return None;
@@ -493,7 +509,7 @@ fn hash_line(source: &str, line: &str) -> String {
 }
 
 pub fn extract_token_totals_from_line(line: &str) -> Option<TokenTotals> {
-    let obj: Value = serde_json::from_str(line).ok()?;
+    let obj = parse_json_line(line)?;
     if obj.get("type")?.as_str()? != "event_msg" {
         return None;
     }
@@ -509,7 +525,7 @@ pub fn extract_token_totals_from_line(line: &str) -> Option<TokenTotals> {
 }
 
 pub fn extract_usage_totals_from_line(line: &str) -> Option<UsageTotals> {
-    let obj: Value = serde_json::from_str(line).ok()?;
+    let obj = parse_json_line(line)?;
     if obj.get("type")?.as_str()? != "event_msg" {
         return None;
     }
@@ -525,7 +541,7 @@ pub fn extract_usage_totals_from_line(line: &str) -> Option<UsageTotals> {
 }
 
 pub fn extract_context_from_line(line: &str) -> Option<ContextStatus> {
-    let obj: Value = serde_json::from_str(line).ok()?;
+    let obj = parse_json_line(line)?;
     if obj.get("type")?.as_str()? != "event_msg" {
         return None;
     }
@@ -547,7 +563,25 @@ pub fn extract_usage_event_from_line(
     session_id: &str,
     reasoning_effort: Option<&str>,
 ) -> Option<UsageEvent> {
-    let obj: Value = serde_json::from_str(line).ok()?;
+    let obj = parse_json_line(line)?;
+    extract_usage_event_from_value(
+        &obj,
+        line,
+        source,
+        fallback_model,
+        session_id,
+        reasoning_effort,
+    )
+}
+
+fn extract_usage_event_from_value(
+    obj: &Value,
+    line: &str,
+    source: &str,
+    fallback_model: Option<&str>,
+    session_id: &str,
+    reasoning_effort: Option<&str>,
+) -> Option<UsageEvent> {
     if obj.get("type")?.as_str()? != "event_msg" {
         return None;
     }
@@ -560,16 +594,16 @@ pub fn extract_usage_event_from_line(
         return None;
     }
     let usage = parse_usage_totals(info)?;
-    let ts = extract_timestamp(&obj)?;
-    let model = extract_model(&obj)
+    let ts = extract_timestamp(obj)?;
+    let model = extract_model(obj)
         .or_else(|| fallback_model.map(str::to_string))
         .unwrap_or_else(|| "unknown".to_string());
-    let request_id = extract_request_id(&obj);
+    let request_id = extract_request_id(obj);
     let context = parse_context_status_optional(info);
     let id = hash_line(source, line);
     let effort = reasoning_effort
         .map(|value| value.to_string())
-        .or_else(|| extract_effort(&obj));
+        .or_else(|| extract_effort(obj));
 
     Some(UsageEvent {
         id,
@@ -594,13 +628,15 @@ pub fn usage_events_from_reader<R: BufRead>(reader: R, source: &str) -> Vec<Usag
         .lines()
         .map_while(|line| line.ok())
         .filter_map(|line| {
-            if let Some(model) = extract_model_from_line(&line) {
+            let obj = parse_json_line(&line)?;
+            if let Some(model) = extract_model(&obj) {
                 current_model = Some(model);
             }
-            if let Some(effort) = extract_effort_from_line(&line) {
+            if let Some(effort) = extract_effort_if_turn_context(&obj) {
                 current_effort = Some(effort);
             }
-            extract_usage_event_from_line(
+            extract_usage_event_from_value(
+                &obj,
                 &line,
                 source,
                 current_model.as_deref(),
@@ -900,13 +936,18 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                 Ok(bytes) => {
                     bytes_read = bytes_read.saturating_add(bytes as u64);
                     let line = buf.trim_end_matches(&['\n', '\r'][..]);
-                    if let Some(model) = extract_model_from_line(line) {
+                    let Some(obj) = parse_json_line(line) else {
+                        buf.clear();
+                        continue;
+                    };
+                    if let Some(model) = extract_model(&obj) {
                         current_model = Some(model);
                     }
-                    if let Some(effort) = extract_effort_from_line(line) {
+                    if let Some(effort) = extract_effort_if_turn_context(&obj) {
                         current_effort = Some(effort);
                     }
-                    if let Some(event) = extract_usage_event_from_line(
+                    if let Some(event) = extract_usage_event_from_value(
+                        &obj,
                         line,
                         &file_path,
                         current_model.as_deref(),
@@ -916,11 +957,12 @@ pub fn ingest_codex_home(db: &mut Db, codex_home: &Path) -> Result<IngestStats> 
                         events.push(event);
                     }
                     if let Some(event) =
-                        extract_message_event_from_line(line, &file_path, &session_id)
+                        extract_message_event_from_value(&obj, line, &file_path, &session_id)
                     {
                         message_events.push(event);
                     }
-                    let mut snapshots = extract_limit_snapshots_from_line(line, &file_path);
+                    let mut snapshots =
+                        extract_limit_snapshots_from_value(&obj, line, &file_path);
                     if !snapshots.is_empty() {
                         limit_snapshots.append(&mut snapshots);
                     }
