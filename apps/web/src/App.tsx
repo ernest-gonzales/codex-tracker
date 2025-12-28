@@ -647,6 +647,32 @@ export default function App() {
     return () => window.clearInterval(intervalId);
   }, [autoRefreshInterval, rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
 
+  useEffect(() => {
+    if (!isTauriRuntime) {
+      return;
+    }
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      if (cancelled) {
+        return;
+      }
+      unlisten = await listen<IngestStats>("ingest:complete", (event) => {
+        if (event.payload) {
+          setIngestStats(event.payload);
+        }
+        refreshAll();
+      });
+    })();
+    return () => {
+      cancelled = true;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [isTauriRuntime, rangeParamsKey, modelFilter, activeMinutes, chartBucket]);
+
   const modelOptions = useMemo(() => {
     const models = new Set(breakdown.map((item) => item.model));
     return ["all", ...Array.from(models).sort()];

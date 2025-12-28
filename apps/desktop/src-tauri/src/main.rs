@@ -531,9 +531,25 @@ pub fn run() {
                 eprintln!("failed to sync pricing defaults: {}", err);
             }
             let refresh_state = app_state.clone();
+            let app_handle = app.handle();
             tauri::async_runtime::spawn_blocking(move || {
-                if let Err(err) = refresh_state.refresh_data() {
-                    eprintln!("failed to refresh data on startup: {}", err);
+                let result = (|| {
+                    let mut db = refresh_state.open_db().map_err(to_error)?;
+                    let home = require_active_home(&mut db)?;
+                    let stats =
+                        ingest::ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_error)?;
+                    db.update_event_costs(home.id).map_err(to_error)?;
+                    Ok::<IngestStats, String>(stats)
+                })();
+                match result {
+                    Ok(stats) => {
+                        if let Err(err) = app_handle.emit("ingest:complete", stats) {
+                            eprintln!("failed to emit ingest complete: {}", err);
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("failed to refresh data on startup: {}", err);
+                    }
                 }
             });
             app.manage(DesktopState {
