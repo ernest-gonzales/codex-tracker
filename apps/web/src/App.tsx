@@ -379,6 +379,7 @@ export default function App() {
   const [limits, setLimits] = useState<LimitsResponse | null>(null);
   const [limitWindows, setLimitWindows] = useState<UsageLimitWindow[]>([]);
   const [limitCurrent, setLimitCurrent] = useState<UsageLimitCurrentResponse | null>(null);
+  const [showLimitDetails, setShowLimitDetails] = useState<boolean>(false);
   const [tokensSeries, setTokensSeries] = useState<TimeSeriesPoint[]>([]);
   const [costSeries, setCostSeries] = useState<TimeSeriesPoint[]>([]);
   const [breakdown, setBreakdown] = useState<ModelCostBreakdown[]>([]);
@@ -1103,7 +1104,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app density-compact">
       <div className="glow" aria-hidden="true" />
       {toast && (
         <div
@@ -1670,73 +1671,81 @@ export default function App() {
           </header>
 
       <section className="grid summary-grid">
-        <div className="card">
+        <div className="card kpi-card">
           <p className="card-label">Total Tokens</p>
-          <p className="card-value">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-lg" />
-            ) : (
-              formatNumber(summary?.total_tokens)
-            )}
-          </p>
-          <p className="card-meta">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-sm" />
-            ) : (
-              `Input ${formatNumber(summary?.input_tokens)}`
-            )}
-          </p>
+          <div className="card-value-row">
+            <p className="card-value">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-lg" />
+              ) : (
+                formatNumber(summary?.total_tokens)
+              )}
+            </p>
+            <p className="card-meta-inline">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-sm" />
+              ) : (
+                `Input ${formatNumber(summary?.input_tokens)}`
+              )}
+            </p>
+          </div>
         </div>
-        <div className="card">
+        <div className="card kpi-card">
           <p className="card-label">Total Cost</p>
-          <p className="card-value">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-lg" />
-            ) : (
-              formatCurrency(summary?.total_cost_usd)
-            )}
-          </p>
-          <p className="card-meta">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-sm" />
-            ) : (
-              `Output ${formatCurrency(summary?.output_cost_usd)}`
-            )}
-          </p>
+          <div className="card-value-row">
+            <p className="card-value">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-lg" />
+              ) : (
+                formatCurrency(summary?.total_cost_usd)
+              )}
+            </p>
+            <p className="card-meta-inline">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-sm" />
+              ) : (
+                `Output ${formatCurrency(summary?.output_cost_usd)}`
+              )}
+            </p>
+          </div>
         </div>
-        <div className="card">
+        <div className="card kpi-card">
           <p className="card-label">Cached Input</p>
-          <p className="card-value">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-lg" />
-            ) : (
-              formatNumber(summary?.cached_input_tokens)
-            )}
-          </p>
-          <p className="card-meta">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-sm" />
-            ) : (
-              `Cost ${formatCurrency(summary?.cached_input_cost_usd)}`
-            )}
-          </p>
+          <div className="card-value-row">
+            <p className="card-value">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-lg" />
+              ) : (
+                formatNumber(summary?.cached_input_tokens)
+              )}
+            </p>
+            <p className="card-meta-inline">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-sm" />
+              ) : (
+                `Cost ${formatCurrency(summary?.cached_input_cost_usd)}`
+              )}
+            </p>
+          </div>
         </div>
-        <div className="card">
+        <div className="card kpi-card">
           <p className="card-label">Output Tokens</p>
-          <p className="card-value">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-lg" />
-            ) : (
-              formatNumber(summary?.output_tokens)
-            )}
-          </p>
-          <p className="card-meta">
-            {showSummarySkeleton ? (
-              <span className="skeleton-line skeleton-line-sm" />
-            ) : (
-              `Reasoning ${formatNumber(summary?.reasoning_output_tokens)}`
-            )}
-          </p>
+          <div className="card-value-row">
+            <p className="card-value">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-lg" />
+              ) : (
+                formatNumber(summary?.output_tokens)
+              )}
+            </p>
+            <p className="card-meta-inline">
+              {showSummarySkeleton ? (
+                <span className="skeleton-line skeleton-line-sm" />
+              ) : (
+                `Reasoning ${formatNumber(summary?.reasoning_output_tokens)}`
+              )}
+            </p>
+          </div>
         </div>
       </section>
 
@@ -1756,7 +1765,13 @@ export default function App() {
         {activeSessions.length === 0 ? (
           <p className="note">No recent sessions in this window.</p>
         ) : (
-          <div className="session-list">
+          <div className="session-table">
+            <div className="session-row session-row-head">
+              <span>Session</span>
+              <span>Model</span>
+              <span>Context</span>
+              <span>Pressure</span>
+            </div>
             {activeSessions.map((session) => {
               const percent =
                 session.context_window > 0
@@ -1766,28 +1781,32 @@ export default function App() {
                     )
                   : 0;
               return (
-                <div className="session-card" key={session.session_id}>
-                  <div className="session-header">
-                    <div>
-                      <div className="session-id" title={session.session_id}>
-                        {formatSessionLabel(session.session_id)}
-                      </div>
-                      <div className="session-meta">
-                        Model {session.model} · Started{" "}
-                        {formatBucketLabel(session.session_start)} · Last{" "}
-                        {formatBucketLabel(session.last_seen)}
-                      </div>
+                <div className="session-row" key={session.session_id}>
+                  <div className="session-cell">
+                    <div className="session-id" title={session.session_id}>
+                      {formatSessionLabel(session.session_id)}
                     </div>
-                    <div className="session-metrics">
-                      <span>
-                        {formatNumber(session.context_used)} /{" "}
-                        {formatNumber(session.context_window)}
-                      </span>
-                      <span>{Math.round(percent)}%</span>
+                    <div className="session-sub">
+                      Started {formatBucketLabel(session.session_start)}
                     </div>
                   </div>
-                  <div className="session-bar">
-                    <div className="session-bar-fill" style={{ width: `${percent}%` }} />
+                  <div className="session-cell">
+                    <div className="session-model">{session.model}</div>
+                    <div className="session-sub">
+                      Last {formatBucketLabel(session.last_seen)}
+                    </div>
+                  </div>
+                  <div className="session-cell session-cell-metrics">
+                    <span>
+                      {formatNumber(session.context_used)} /{" "}
+                      {formatNumber(session.context_window)}
+                    </span>
+                    <span className="session-percent">{Math.round(percent)}%</span>
+                  </div>
+                  <div className="session-cell session-cell-bar">
+                    <div className="session-bar">
+                      <div className="session-bar-fill" style={{ width: `${percent}%` }} />
+                    </div>
                   </div>
                 </div>
               );
@@ -1802,7 +1821,16 @@ export default function App() {
             <h2>Usage Limits</h2>
             <p>Current 5-hour and 7-day usage limits with recent reset windows.</p>
           </div>
-          <span className="tag">Logs</span>
+          <div className="panel-actions">
+            <button
+              className="button ghost small"
+              type="button"
+              onClick={() => setShowLimitDetails((prev) => !prev)}
+            >
+              {showLimitDetails ? "Hide details" : "Show details"}
+            </button>
+            <span className="tag">Logs</span>
+          </div>
         </div>
         <div className="limits-grid">
           <div className="limit-card">
@@ -1846,60 +1874,61 @@ export default function App() {
             </p>
           </div>
         </div>
-        {limitWindowRows.length === 0 ? (
-          <p className="note">No 7-day reset windows captured yet.</p>
-        ) : (
-          <div className="limits-table-scroll">
-            <div className="limits-table">
-              <div className="limits-row limits-header">
-                <span>Window</span>
-                <span>Tokens</span>
-                <span>Cost</span>
-                <span>Messages</span>
-                <span>Change</span>
+        {showLimitDetails &&
+          (limitWindowRows.length === 0 ? (
+            <p className="note">No 7-day reset windows captured yet.</p>
+          ) : (
+            <div className="limits-table-scroll">
+              <div className="limits-table">
+                <div className="limits-row limits-header">
+                  <span>Window</span>
+                  <span>Tokens</span>
+                  <span>Cost</span>
+                  <span>Messages</span>
+                  <span>Change</span>
+                </div>
+                {limitWindowRows.map((window) => {
+                  const startLabel = window.window_start
+                    ? formatBucketLabel(window.window_start)
+                    : "—";
+                  const endLabel = formatBucketLabel(window.window_end);
+                  const now = Date.now();
+                  const startMs = window.window_start
+                    ? new Date(window.window_start).getTime()
+                    : Number.NaN;
+                  const endMs = new Date(window.window_end).getTime();
+                  const isCurrent =
+                    !Number.isNaN(endMs) &&
+                    (Number.isNaN(startMs) ? now < endMs : now >= startMs && now < endMs);
+                  const deltaLabel =
+                    window.delta === null || window.delta === undefined
+                      ? "—"
+                      : `${window.delta >= 0 ? "+" : ""}${window.delta.toFixed(1)}%`;
+                  const deltaClass =
+                    window.delta === null || window.delta === undefined
+                      ? ""
+                      : window.delta < 0
+                        ? "neg"
+                        : "pos";
+                  return (
+                    <div
+                      key={`${window.window_end}-${window.window_start ?? "none"}`}
+                      className={`limits-row ${window.complete ? "" : "incomplete"}`}
+                    >
+                      <span>
+                        {startLabel} → {endLabel}
+                        {isCurrent && <span className="limit-badge">Current</span>}
+                      </span>
+                      <span>{formatNumber(window.total_tokens)}</span>
+                      <span>{formatCurrency(window.total_cost_usd)}</span>
+                      <span>{formatNumber(window.message_count)}</span>
+                      <span className={deltaClass}>{deltaLabel}</span>
+                    </div>
+                  );
+                })}
               </div>
-              {limitWindowRows.map((window) => {
-                const startLabel = window.window_start
-                  ? formatBucketLabel(window.window_start)
-                  : "—";
-                const endLabel = formatBucketLabel(window.window_end);
-                const now = Date.now();
-                const startMs = window.window_start
-                  ? new Date(window.window_start).getTime()
-                  : Number.NaN;
-                const endMs = new Date(window.window_end).getTime();
-                const isCurrent =
-                  !Number.isNaN(endMs) &&
-                  (Number.isNaN(startMs) ? now < endMs : now >= startMs && now < endMs);
-                const deltaLabel =
-                  window.delta === null || window.delta === undefined
-                    ? "—"
-                    : `${window.delta >= 0 ? "+" : ""}${window.delta.toFixed(1)}%`;
-                const deltaClass =
-                  window.delta === null || window.delta === undefined
-                    ? ""
-                    : window.delta < 0
-                      ? "neg"
-                      : "pos";
-                return (
-                  <div
-                    key={`${window.window_end}-${window.window_start ?? "none"}`}
-                    className={`limits-row ${window.complete ? "" : "incomplete"}`}
-                  >
-                    <span>
-                      {startLabel} → {endLabel}
-                      {isCurrent && <span className="limit-badge">Current</span>}
-                    </span>
-                    <span>{formatNumber(window.total_tokens)}</span>
-                    <span>{formatCurrency(window.total_cost_usd)}</span>
-                    <span>{formatNumber(window.message_count)}</span>
-                    <span className={deltaClass}>{deltaLabel}</span>
-                  </div>
-                );
-              })}
             </div>
-          </div>
-        )}
+          ))}
       </section>
 
       <section className="panel chart-panel">
@@ -1933,7 +1962,7 @@ export default function App() {
                   {loading ? "Loading token history..." : "No token activity in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={tokensSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis
@@ -1977,7 +2006,7 @@ export default function App() {
                   {loading ? "Loading cost history..." : "No cost activity in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={costSeries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis
@@ -2045,7 +2074,7 @@ export default function App() {
                   {loading ? "Loading breakdown..." : "No cost data in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={320}>
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart
                     data={costChartData}
                     margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
@@ -2240,7 +2269,7 @@ export default function App() {
                   {loading ? "Loading breakdown..." : "No cost data in this range."}
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={320}>
+                <ResponsiveContainer width="100%" height={240}>
                   <BarChart
                     data={costSeries}
                     margin={{ top: 10, right: 20, left: 0, bottom: 10 }}

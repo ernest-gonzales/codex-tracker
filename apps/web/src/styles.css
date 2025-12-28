@@ -14,8 +14,8 @@
   --accent-2: #ffb347;
   --border: #2f3c6d;
   --focus: rgba(125, 249, 255, 0.55);
-  --chart-grid: rgba(203, 214, 255, 0.14);
-  --chart-axis: #cbd6ff;
+  --chart-grid: rgba(203, 214, 255, 0.08);
+  --chart-axis: rgba(203, 214, 255, 0.7);
   --chart-tooltip-bg: rgba(13, 18, 40, 0.95);
   --chart-token: #7df9ff;
   --chart-cost: #ffb347;
@@ -46,7 +46,7 @@ h2 {
 .app {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 20px 56px;
+  padding: 18px 16px 40px;
   position: relative;
 }
 
@@ -63,10 +63,10 @@ h2 {
 .hero {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: 16px;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .hero-copy {
@@ -151,13 +151,13 @@ h1.brand-name {
 .range-panel {
   background: rgba(17, 26, 56, 0.9);
   border: 1px solid var(--border);
-  padding: 10px;
-  border-radius: 16px;
-  min-width: 240px;
-  max-width: 300px;
+  padding: 8px;
+  border-radius: 14px;
+  min-width: 220px;
+  max-width: 280px;
   box-shadow: var(--shadow);
   display: grid;
-  gap: 6px;
+  gap: 5px;
   backdrop-filter: blur(10px);
 }
 
@@ -315,7 +315,7 @@ h1.brand-name {
 }
 
 .label {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   color: var(--muted);
@@ -364,9 +364,9 @@ h1.brand-name {
   background: var(--card);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 9px 12px;
+  padding: 7px 10px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -384,8 +384,8 @@ h1.brand-name {
 }
 
 .select-compact {
-  padding: 6px 8px;
-  font-size: 12px;
+  padding: 5px 8px;
+  font-size: 11px;
 }
 
 .select-content {
@@ -460,7 +460,7 @@ h1.brand-name {
 .button {
   background: linear-gradient(120deg, var(--accent), #4bb0ff);
   color: #05101e;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border: none;
   border-radius: 10px;
   font-weight: 600;
@@ -495,8 +495,8 @@ h1.brand-name {
 }
 
 .button.small {
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 .error {
@@ -539,55 +539,71 @@ h1.brand-name {
 
 .grid {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 12px;
 }
 
 .card,
 .panel {
   background: rgba(17, 26, 56, 0.95);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 10px 12px;
   box-shadow: var(--shadow);
 }
 
 .card-label {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
 }
 
 .card-value {
-  font-size: 24px;
-  margin: 6px 0 4px;
+  font-size: 20px;
+  margin: 4px 0 2px;
 }
 
 .card-meta {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+}
+
+.card-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card-meta-inline {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .chart-panel {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .chart-card {
   background: rgba(17, 26, 56, 0.6);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 12px;
+  padding: 10px;
 }
 
 .panel-header {
@@ -595,13 +611,14 @@ h1.brand-name {
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .panel-header p {
   color: var(--muted);
   margin: 0;
+  font-size: 11px;
 }
 
 .panel-header h2 {
@@ -610,17 +627,17 @@ h1.brand-name {
 
 .tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .tab {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted);
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   cursor: pointer;
   transition: border-color 0.2s ease, color 0.2s ease;
 }
@@ -631,16 +648,16 @@ h1.brand-name {
 }
 
 .chart {
-  height: 280px;
+  height: 220px;
 }
 
 .chart-empty {
   height: 100%;
-  min-height: 200px;
+  min-height: 160px;
   display: grid;
   place-items: center;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   background: rgba(17, 26, 56, 0.4);
@@ -670,10 +687,10 @@ h1.brand-name {
 }
 
 .empty-cell {
-  padding: 16px 8px;
+  padding: 12px 6px;
   text-align: center;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .input-error {
@@ -700,12 +717,12 @@ h1.brand-name {
 }
 
 .skeleton-line-lg {
-  height: 22px;
+  height: 18px;
   width: 140px;
 }
 
 .skeleton-line-sm {
-  height: 10px;
+  height: 9px;
   width: 90px;
 }
 
@@ -721,11 +738,11 @@ h1.brand-name {
 
 .events-table thead th {
   font-size: 9px;
-  padding: 6px 5px;
+  padding: 5px 4px;
 }
 
 .events-table tbody td {
-  padding: 6px 5px;
+  padding: 5px 4px;
 }
 
 .compact-table {
@@ -734,30 +751,30 @@ h1.brand-name {
 
 .compact-table thead th {
   font-size: 9px;
-  padding: 6px 5px;
+  padding: 5px 4px;
 }
 
 .compact-table tbody td {
-  padding: 8px 6px;
+  padding: 6px 5px;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 thead th {
   text-align: left;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.2em;
-  padding: 10px 8px;
+  letter-spacing: 0.18em;
+  padding: 8px 6px;
 }
 
 tbody td {
-  padding: 10px 8px;
+  padding: 8px 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -798,25 +815,25 @@ tbody td {
   background: rgba(255, 179, 71, 0.2);
   color: #ffd8a5;
   border: 1px solid rgba(255, 179, 71, 0.3);
-  padding: 6px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .chip {
   background: rgba(125, 249, 255, 0.12);
   color: #d6fbff;
   border: 1px solid rgba(125, 249, 255, 0.35);
-  padding: 5px 10px;
+  padding: 4px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .filters {
@@ -828,18 +845,18 @@ tbody td {
 .panel-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .select-inline {
-  padding: 6px 8px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 .settings-layout {
   display: grid;
   grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
-  gap: 18px;
+  gap: 14px;
 }
 
 .settings-nav {
@@ -871,11 +888,11 @@ tbody td {
 
 .settings-content {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .settings-section {
-  scroll-margin-top: 24px;
+  scroll-margin-top: 18px;
 }
 
 .input-row {
@@ -891,19 +908,19 @@ tbody td {
 
 .settings-grid {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .settings-grid-full {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .settings-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: calc(100vh - 96px);
+  gap: 12px;
+  min-height: calc(100vh - 72px);
 }
 
 .settings-header {
@@ -911,21 +928,21 @@ tbody td {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0 4px;
+  gap: 10px;
+  padding: 6px 0 2px;
 }
 
 .settings-title {
   margin: 0;
   font-family: inherit;
   letter-spacing: 0.02em;
-  font-size: clamp(28px, 3.4vw, 40px);
+  font-size: clamp(24px, 3vw, 36px);
 }
 
 .settings-subtitle {
   margin: 6px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .settings-pricing {
@@ -934,11 +951,11 @@ tbody td {
 
 .pricing-toolbar {
   position: sticky;
-  top: 12px;
+  top: 8px;
   z-index: 3;
   display: grid;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 8px 0;
   background: linear-gradient(
     180deg,
     rgba(11, 16, 36, 0.95) 0%,
@@ -957,12 +974,12 @@ tbody td {
 .pricing-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .pricing-table {
   border-collapse: separate;
-  border-spacing: 0 8px;
+  border-spacing: 0 6px;
 }
 
 .pricing-table tbody td {
@@ -1000,14 +1017,14 @@ tbody td {
 
 .settings-kv {
   display: grid;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
 }
 
 .settings-kv-row {
   display: grid;
   grid-template-columns: 110px 1fr;
-  gap: 10px;
+  gap: 8px;
   align-items: start;
 }
 
@@ -1020,58 +1037,58 @@ tbody td {
 
 .settings-kv-value {
   word-break: break-word;
-  font-size: 12px;
+  font-size: 11px;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .kv-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .danger-zone {
-  margin: 12px 0 16px;
-  padding: 12px;
+  margin: 10px 0 12px;
+  padding: 10px;
   border-radius: 14px;
   border: 1px solid rgba(255, 109, 109, 0.4);
   background: rgba(255, 109, 109, 0.08);
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .danger-zone-header h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .danger-zone-header p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .active-sessions {
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .limits-panel {
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .limits-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .limit-card {
   background: var(--card-2);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .limit-inline-row {
@@ -1098,18 +1115,18 @@ tbody td {
 }
 
 .limit-value {
-  font-size: 26px;
-  margin: 6px 0 4px;
+  font-size: 22px;
+  margin: 4px 0 2px;
 }
 
 .limits-table {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   font-size: 12px;
 }
 
 .limits-table-scroll {
-  max-height: 240px;
+  max-height: 200px;
   overflow-y: auto;
   padding-right: 6px;
 }
@@ -1117,16 +1134,16 @@ tbody td {
 .limits-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
-  gap: 12px;
-  padding: 8px 6px;
+  gap: 10px;
+  padding: 6px 4px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .limits-header {
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 10px;
+  letter-spacing: 0.18em;
+  font-size: 9px;
   border-top: none;
   padding-top: 0;
 }
@@ -1147,57 +1164,84 @@ tbody td {
   display: inline-flex;
   align-items: center;
   margin-left: 8px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--muted);
 }
 
-.session-list {
+.session-table {
   display: grid;
-  gap: 12px;
+  gap: 6px;
 }
 
-.session-card {
-  background: var(--card-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px 14px;
-}
-
-.session-header {
-  display: flex;
+.session-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) minmax(140px, 1fr) minmax(140px, 1fr)
+    minmax(160px, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(47, 60, 109, 0.7);
+  background: rgba(17, 26, 56, 0.65);
+}
+
+.session-row-head {
+  background: transparent;
+  border: none;
+  padding: 0 8px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 9px;
+}
+
+.session-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .session-id {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.session-meta {
-  color: var(--muted);
+.session-model {
   font-size: 12px;
+}
+
+.session-sub {
+  color: var(--muted);
+  font-size: 11px;
   margin-top: 4px;
 }
 
-.session-metrics {
+.session-cell-metrics {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  gap: 2px;
+  font-size: 11px;
   color: var(--muted);
-  text-align: right;
+  text-align: left;
+}
+
+.session-percent {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.session-cell-bar {
+  min-width: 140px;
 }
 
 .session-bar {
-  margin-top: 10px;
-  height: 8px;
+  margin-top: 0;
+  height: 6px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   overflow: hidden;
@@ -1215,8 +1259,8 @@ tbody td {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .pagination {
@@ -1236,8 +1280,8 @@ tbody td {
   border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text);
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
@@ -1260,7 +1304,7 @@ input[type="number"] {
 
 .input-hint {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
 }
 
@@ -1275,7 +1319,7 @@ input[type="number"] {
   align-items: center;
   padding: 0 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   pointer-events: none;
   z-index: 2;
 }
@@ -1325,8 +1369,8 @@ input[type="number"] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .status {
@@ -1336,7 +1380,7 @@ input[type="number"] {
 
 .note {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   margin-top: 8px;
 }
 
@@ -1370,14 +1414,19 @@ input[type="number"] {
     padding: 14px;
   }
 
-  .session-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .session-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 
-  .session-metrics {
+  .session-row-head {
+    display: none;
+  }
+
+  .session-cell-metrics {
     flex-direction: row;
     text-align: left;
+    gap: 8px;
   }
 
   .limits-row {
