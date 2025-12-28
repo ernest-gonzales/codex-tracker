@@ -8,7 +8,7 @@ usage() {
 Usage: scripts/release_local.sh <version>
 
 Bumps versions in:
-  - apps/desktop/src-tauri/Cargo.toml
+  - Cargo.toml ([workspace.package].version)
   - CHANGELOG.md (moves [Unreleased] into a new release section)
 
 Then builds:
@@ -43,7 +43,7 @@ RELEASE_DATE="$(date +%F)"
 
 update_cargo_toml_version() {
   local file="$1"
-  perl -0777 -pi -e 's/(\[package\][\s\S]*?^version\s*=\s*")([^"]*)(")/$1$ENV{RELEASE_VERSION}$3/m or die "Failed to update version in $ARGV\n";' "${file}"
+  perl -0777 -pi -e 's/(\[workspace\.package\][\s\S]*?^version\s*=\s*")([^"]*)(")/$1$ENV{RELEASE_VERSION}$3/m or die "Failed to update workspace version in $ARGV\n";' "${file}"
 }
 
 update_changelog() {
@@ -93,7 +93,7 @@ update_changelog() {
 export RELEASE_VERSION="${VERSION}"
 export RELEASE_DATE
 
-update_cargo_toml_version "${ROOT_DIR}/apps/desktop/src-tauri/Cargo.toml"
+update_cargo_toml_version "${ROOT_DIR}/Cargo.toml"
 update_changelog "${ROOT_DIR}/CHANGELOG.md"
 
 echo "Version bumped to ${VERSION} (${RELEASE_DATE})."

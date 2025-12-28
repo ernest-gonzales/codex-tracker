@@ -1,6 +1,6 @@
 [package]
 name = "codex_tracker"
-version = "0.2.0"
+version.workspace = true
 description = "Codex Tracker"
 edition = "2024"
 

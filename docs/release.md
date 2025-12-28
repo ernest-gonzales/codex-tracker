@@ -5,14 +5,14 @@ using macOS artifacts published on GitHub Releases.
 
 ## Prerequisites
 
-- Version source of truth: `apps/desktop/src-tauri/Cargo.toml` (Tauri derives it because `apps/desktop/src-tauri/tauri.conf.json` omits `version`).
+- Version source of truth: `Cargo.toml` (`[workspace.package].version`; all workspace crates inherit it via `version.workspace = true`).
 - Optional UI version alignment: `apps/web/package.json`
 - Release notes: `CHANGELOG.md`
 
 ## How to cut a release (checklist)
 
 1. Update versions:
-   - `apps/desktop/src-tauri/Cargo.toml`
+   - `Cargo.toml`
 2. Update `CHANGELOG.md` with a new release section.
 3. Commit the changes.
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.

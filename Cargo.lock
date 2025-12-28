@@ -1783,7 +1783,7 @@ dependencies = [
 
 [[package]]
 name = "ingest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "rayon",
@@ -4335,7 +4335,7 @@ dependencies = [
 
 [[package]]
 name = "tracker_app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "ingest",
@@ -4349,14 +4349,14 @@ dependencies = [
 
 [[package]]
 name = "tracker_core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "tracker_db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "rusqlite",
