@@ -1,31 +1,32 @@
-const resolvedLocale = typeof navigator !== "undefined" ? navigator.language : "en-US";
+const resolvedLocale = "en-US";
 
 const currency = new Intl.NumberFormat(resolvedLocale, {
   style: "currency",
   currency: "USD",
+  currencyDisplay: "narrowSymbol",
   minimumFractionDigits: 2,
-  maximumFractionDigits: 2
+  maximumFractionDigits: 2,
 });
 const numberFormat = new Intl.NumberFormat(resolvedLocale);
 const compactNumberFormat = new Intl.NumberFormat(resolvedLocale, {
   notation: "compact",
   compactDisplay: "short",
-  maximumFractionDigits: 1
+  maximumFractionDigits: 1,
 });
 const dateTimeFormat = new Intl.DateTimeFormat(resolvedLocale, {
   month: "short",
   day: "2-digit",
   hour: "2-digit",
-  minute: "2-digit"
+  minute: "2-digit",
 });
 const dateFormat = new Intl.DateTimeFormat(resolvedLocale, {
   year: "numeric",
   month: "short",
-  day: "2-digit"
+  day: "2-digit",
 });
 const hourFormat = new Intl.DateTimeFormat(resolvedLocale, {
   hour: "2-digit",
-  minute: "2-digit"
+  minute: "2-digit",
 });
 
 export function formatCurrency(value: number | null | undefined) {
