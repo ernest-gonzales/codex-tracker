@@ -1368,7 +1368,9 @@ mod tests {
         }])
         .expect("insert pricing");
 
-        let log_path = dir.path().join("session.log");
+        let log_dir = dir.path().join("sessions/2025/01/01");
+        std::fs::create_dir_all(&log_dir).expect("create log dir");
+        let log_path = log_dir.join("rollout-2025-01-01T00-00-00-1234.jsonl");
         let mut log_file = std::fs::File::create(&log_path).expect("create log");
         let line = r#"{"timestamp":"2025-12-19T19:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-test","total_token_usage":{"input_tokens":1000,"cached_input_tokens":200,"output_tokens":300,"reasoning_output_tokens":0,"total_tokens":1500},"model_context_window":100}}}"#;
         writeln!(log_file, "{}", line).expect("write log");

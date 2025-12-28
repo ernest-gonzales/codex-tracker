@@ -8,4 +8,5 @@ npm install
 npm run build
 
 cd "${root_dir}"
+# run with CODEX_TRACKER_INGEST_TIMING=1 for ingestion time logs
 cargo run -p codex_tracker_desktop

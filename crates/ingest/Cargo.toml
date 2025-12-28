@@ -11,6 +11,7 @@ sha2 = "0.10"
 tracker_core = { path = "../core" }
 tracker_db = { path = "../db" }
 walkdir = "2.5"
+rayon = "1.10"
 
 [dev-dependencies]
 tempfile = "3"
