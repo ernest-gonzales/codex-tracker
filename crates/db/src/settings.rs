@@ -29,13 +29,11 @@ impl Db {
     }
 
     pub fn get_context_active_minutes(&self) -> Result<u32> {
-        let value = self.get_setting("context_active_minutes")?;
-        if let Some(value) = value
-            && let Ok(parsed) = value.parse::<u32>()
-        {
-            return Ok(parsed);
-        }
-        Ok(60)
+        let minutes = self
+            .get_setting("context_active_minutes")?
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(60);
+        Ok(minutes)
     }
 
     pub fn set_context_active_minutes(&self, minutes: u32) -> Result<()> {
