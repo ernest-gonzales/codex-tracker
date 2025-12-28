@@ -5,6 +5,7 @@ use chrono::{Duration, SecondsFormat, Utc};
 use ingest::IngestStats;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
+use tauri_plugin_opener::OpenerExt;
 use tracker_app::{AppState, RangeParams};
 use tracker_core::{
     ActiveSession, CodexHome, ContextPressureStats, ModelBreakdown, ModelCostBreakdown,
@@ -107,6 +108,17 @@ fn context_stats(
     let mut db = open_db(&state)?;
     let home = require_active_home(&mut db)?;
     db.context_pressure_stats(&range, home.id).map_err(to_error)
+}
+
+#[tauri::command]
+fn open_logs_dir(app: tauri::AppHandle, state: State<DesktopState>) -> Result<(), String> {
+    let mut db = open_db(&state)?;
+    let home = require_active_home(&mut db)?;
+    let path = expand_home_path(&home.path);
+    if !path.exists() {
+        return Err(format!("Codex home not found at {}", path.display()));
+    }
+    app.opener().open_path(path, None::<&str>).map_err(to_error)
 }
 
 #[tauri::command]
@@ -448,6 +460,20 @@ fn boxed_err(message: impl Into<String>) -> Box<dyn std::error::Error> {
     Box::new(std::io::Error::other(message.into()))
 }
 
+fn expand_home_path(path: &str) -> PathBuf {
+    if path == "~" {
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home);
+        }
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            return PathBuf::from(home).join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
 fn migrate_legacy_storage(
     app_data_dir: &Path,
     db_path: &Path,
@@ -535,8 +561,8 @@ pub fn run() {
                 let result = (|| {
                     let mut db = refresh_state.open_db().map_err(to_error)?;
                     let home = require_active_home(&mut db)?;
-                    let stats =
-                        ingest::ingest_codex_home(&mut db, Path::new(&home.path)).map_err(to_error)?;
+                    let stats = ingest::ingest_codex_home(&mut db, Path::new(&home.path))
+                        .map_err(to_error)?;
                     Ok::<IngestStats, String>(stats)
                 })();
                 match result {
@@ -573,6 +599,7 @@ pub fn run() {
             limits_current,
             limits_7d_windows,
             ingest,
+            open_logs_dir,
             pricing_list,
             pricing_replace,
             pricing_recompute,

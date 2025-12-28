@@ -30,6 +30,7 @@ import {
   getTimeSeries,
   listHomes,
   listPricing,
+  openLogsDir,
   recomputePricing,
   replacePricing,
   runIngest,
@@ -1196,17 +1197,12 @@ export default function App() {
   }
 
   async function handleOpenLogs() {
-    if (!activeHome?.path) {
-      setToast({ message: "Select a home to open logs", tone: "info" });
-      return;
-    }
     if (!isTauriRuntime) {
       setToast({ message: "Open logs is available in the desktop app", tone: "info" });
       return;
     }
     try {
-      const { openPath } = await import("@tauri-apps/plugin-opener");
-      await openPath(activeHome.path);
+      await openLogsDir();
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Open logs failed", tone: "error" });
     }

@@ -75,6 +75,14 @@ Single command (build UI + run desktop app):
 
 Note: the desktop app loads the built UI from `apps/web/dist` (no dev server).
 
+### Desktop tips
+
+- Cmd+R refreshes the dashboard.
+- Cmd+L opens the active Codex home in Finder (same as the Logs button).
+- Cmd+, opens Settings.
+- Esc closes modals/drawers.
+- Last selected range + settings tab persist between launches.
+
 ## Configuration and data locations
 
 ### Codex log source (“Codex home”)

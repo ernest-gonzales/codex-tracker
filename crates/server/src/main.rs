@@ -8,8 +8,8 @@ use chrono::{Duration, SecondsFormat, Utc};
 use ingest::{IngestStats, ingest_codex_home};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-use tracker_app::RangeParams;
 use tower_http::services::{ServeDir, ServeFile};
+use tracker_app::RangeParams;
 use tracker_core::{
     ActiveSession, CodexHome, ContextPressureStats, ModelBreakdown, ModelCostBreakdown,
     ModelEffortCostBreakdown, ModelEffortTokenBreakdown, ModelTokenBreakdown, PricingRuleInput,
@@ -172,7 +172,10 @@ fn resolve_port() -> u16 {
         Ok(value) => match value.parse::<u16>() {
             Ok(port) => port,
             Err(_) => {
-                eprintln!("invalid CODEX_TRACKER_PORT={}, using {}", value, default_port);
+                eprintln!(
+                    "invalid CODEX_TRACKER_PORT={}, using {}",
+                    value, default_port
+                );
                 default_port
             }
         },
@@ -933,8 +936,8 @@ mod tests {
         let mut db = Db::open(&test_state.state.db_path).expect("open db");
         let home = db.get_active_home().expect("active home").expect("home");
         let observed_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-        let reset_at = (Utc::now() + Duration::minutes(30))
-            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let reset_at =
+            (Utc::now() + Duration::minutes(30)).to_rfc3339_opts(SecondsFormat::Millis, true);
         db.insert_limit_snapshots(
             home.id,
             &[
@@ -984,8 +987,7 @@ mod tests {
         let mut db = Db::open(&test_state.state.db_path).expect("open db");
         let home = db.get_active_home().expect("active home").expect("home");
         let now = Utc::now();
-        let event_ts = (now - Duration::minutes(10))
-            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let event_ts = (now - Duration::minutes(10)).to_rfc3339_opts(SecondsFormat::Millis, true);
         db.insert_usage_events(
             home.id,
             &[UsageEvent {
@@ -1025,8 +1027,7 @@ mod tests {
         )
         .expect("insert messages");
         let observed_at = now.to_rfc3339_opts(SecondsFormat::Millis, true);
-        let reset_at = (now + Duration::minutes(30))
-            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let reset_at = (now + Duration::minutes(30)).to_rfc3339_opts(SecondsFormat::Millis, true);
         db.insert_limit_snapshots(
             home.id,
             &[

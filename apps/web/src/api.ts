@@ -226,3 +226,11 @@ export async function updateSettings(payload: {
     body: JSON.stringify(payload)
   });
 }
+
+export async function openLogsDir(): Promise<void> {
+  if (isTauriRuntime) {
+    await invokeCommand("open_logs_dir");
+    return;
+  }
+  throw new Error("Open logs is available in the desktop app only");
+}

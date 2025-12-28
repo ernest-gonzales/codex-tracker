@@ -2272,10 +2272,8 @@ mod tests {
         let mut db = setup_db();
         let home = setup_home(&mut db);
         let now = Utc::now();
-        let reset_at = (now - Duration::hours(1))
-            .to_rfc3339_opts(SecondsFormat::Millis, true);
-        let observed_at = (now - Duration::hours(2))
-            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let reset_at = (now - Duration::hours(1)).to_rfc3339_opts(SecondsFormat::Millis, true);
+        let observed_at = (now - Duration::hours(2)).to_rfc3339_opts(SecondsFormat::Millis, true);
         let snapshots = vec![make_limit_snapshot(
             "7d",
             0.0,

@@ -132,8 +132,8 @@ pub fn resolve_range(params: &RangeParams) -> Result<TimeRange, String> {
 }
 
 pub fn normalize_rfc3339_to_utc(value: &str) -> Result<String, String> {
-    let parsed = DateTime::parse_from_rfc3339(value)
-        .map_err(|err| format!("invalid datetime: {}", err))?;
+    let parsed =
+        DateTime::parse_from_rfc3339(value).map_err(|err| format!("invalid datetime: {}", err))?;
     Ok(parsed
         .with_timezone(&Utc)
         .to_rfc3339_opts(SecondsFormat::Millis, true))
