@@ -637,6 +637,11 @@ export default function App() {
     return AUTO_REFRESH_OPTIONS.find((option) => option.value === autoRefresh)?.ms ?? 0;
   }, [autoRefresh]);
 
+  const isTauriRuntime =
+    typeof window !== "undefined" &&
+    (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
+      Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__));
+
   useEffect(() => {
     if (!autoRefreshInterval) {
       return;
@@ -708,11 +713,6 @@ export default function App() {
       label: home.label || home.path
     }));
   }, [homes]);
-
-  const isTauriRuntime =
-    typeof window !== "undefined" &&
-    (Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
-      Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__));
 
   const isRefreshing = loading || isIngesting;
   const showSummarySkeleton = loading && !summary;
