@@ -52,6 +52,10 @@ pub struct Db {
 impl Db {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let conn = Connection::open(path)?;
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
+        conn.pragma_update(None, "cache_size", -20_000)?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(Self { conn })
     }
