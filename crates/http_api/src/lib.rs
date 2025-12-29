@@ -52,6 +52,3 @@ pub fn router(state: HttpState) -> Router<()> {
         .fallback(handlers::ui_fallback)
         .with_state(state)
 }
-
-#[cfg(test)]
-mod tests;

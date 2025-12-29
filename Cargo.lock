@@ -1643,6 +1643,7 @@ version = "0.2.0"
 dependencies = [
  "app_api",
  "axum",
+ "http-body-util",
  "rand 0.8.5",
  "serde",
  "serde_json",

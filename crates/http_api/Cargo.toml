@@ -14,5 +14,6 @@ tokio = { version = "1.36.0", features = ["macros", "net", "rt-multi-thread", "s
 tracker_app = { path = "../app" }
 
 [dev-dependencies]
+http-body-util = "0.1"
 tempfile = "3"
 tower = { version = "0.4", features = ["util"] }
