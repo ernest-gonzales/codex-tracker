@@ -5,12 +5,14 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
+# Default: no broad permissions. We'll grant per-job.
+permissions: {}
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-14
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -123,6 +125,8 @@ jobs:
   release:
     runs-on: ubuntu-22.04
     needs: build-macos
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
