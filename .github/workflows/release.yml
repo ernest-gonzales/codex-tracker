@@ -51,11 +51,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cargo/bin
-          key: ${{ runner.os }}-cargo-bin-tauri-cli-2.5.1
+          key: ${{ runner.os }}-cargo-bin-tauri-cli-2.5.0
 
       - name: Install Tauri CLI
         run: |
-          TAURI_CLI_VERSION="2.5.1"
+          TAURI_CLI_VERSION="2.5.0"
           if command -v cargo-tauri >/dev/null 2>&1; then
             if cargo tauri --version 2>/dev/null | grep -q "${TAURI_CLI_VERSION}"; then
               exit 0
