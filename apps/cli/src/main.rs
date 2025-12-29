@@ -37,24 +37,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = args.port.unwrap_or(config.config.port);
 
     let paths = AppPaths::new(data_dir.dir.clone());
-    ensure_app_data_dir(&paths)
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
-    let legacy_backup_dir = migrate_legacy_storage(&paths)
-        .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+    ensure_app_data_dir(&paths).map_err(|err| io::Error::other(err.to_string()))?;
+    let legacy_backup_dir =
+        migrate_legacy_storage(&paths).map_err(|err| io::Error::other(err.to_string()))?;
 
     let app_state = AppState::new(paths.db_path, paths.pricing_defaults_path);
     let is_fresh_db = app_state.is_fresh_db();
     if let Err(err) = app_state.setup_db() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to initialize database: {}", err),
-        )
-        .into());
+        return Err(io::Error::other(format!("failed to initialize database: {}", err)).into());
     }
-    if is_fresh_db {
-        if let Err(err) = app_state.apply_pricing_defaults() {
-            eprintln!("failed to apply pricing defaults: {}", err);
-        }
+    if is_fresh_db && let Err(err) = app_state.apply_pricing_defaults() {
+        eprintln!("failed to apply pricing defaults: {}", err);
     }
     if let Err(err) = app_state.sync_pricing_defaults() {
         eprintln!("failed to sync pricing defaults: {}", err);
@@ -87,10 +80,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Codex Tracker is running at {url}");
     println!("Press Ctrl+C to stop.");
 
-    if !args.no_open {
-        if let Err(err) = open_url(&url) {
-            eprintln!("failed to open browser: {}", err);
-        }
+    if !args.no_open && let Err(err) = open_url(&url) {
+        eprintln!("failed to open browser: {}", err);
     }
 
     axum::serve(listener, router)
@@ -124,7 +115,7 @@ fn open_url(url: &str) -> Result<(), io::Error> {
     if status.success() {
         Ok(())
     } else {
-        Err(io::Error::new(io::ErrorKind::Other, "open command failed"))
+        Err(io::Error::other("open command failed"))
     }
 }
 
