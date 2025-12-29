@@ -34,6 +34,7 @@ These rules apply equally to human and AI-assisted workflows.
 - Work end-to-end on a task until completion.
 - Avoid unnecessary clarification questions unless a requirement is genuinely ambiguous.
 - Prefer incremental, reviewable changes.
+- Make all changes on a custom branch unless already working on a non-main branch.
 - Commit changes with clear, descriptive messages.
 - Add or update tests when behavior changes.
 - Do not leave unfinished TODOs in production code.
