@@ -61,7 +61,7 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "app_api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ingest",
  "serde",
@@ -551,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "codex_tracker"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "app_api",
  "chrono",
@@ -570,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "codex_tracker_cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "app_api",
  "axum",
@@ -1639,7 +1639,7 @@ dependencies = [
 
 [[package]]
 name = "http_api"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "app_api",
  "axum",
@@ -1887,7 +1887,7 @@ dependencies = [
 
 [[package]]
 name = "ingest"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "rayon",
@@ -4505,7 +4505,7 @@ dependencies = [
 
 [[package]]
 name = "tracker_app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "ingest",
@@ -4519,14 +4519,14 @@ dependencies = [
 
 [[package]]
 name = "tracker_core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "tracker_db"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "rusqlite",
