@@ -77,6 +77,8 @@ A task is considered complete when:
 ## Rust-specific guidelines
 
 - Run `cargo fmt` and keep formatting clean
+- After any Rust changes, ensure `cargo fmt --check` passes (run `cargo fmt` to fix)
+- After any Rust changes, ensure `cargo clippy --workspace --all-targets -- -D warnings` passes
 - Treat warnings as errors:
 
   ```bash

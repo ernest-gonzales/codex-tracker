@@ -102,6 +102,9 @@ cd "${ROOT_DIR}/apps/web"
 npm ci
 npm run build
 
+cd "${ROOT_DIR}"
+cargo build -p codex_tracker_cli --release
+
 cd "${ROOT_DIR}/apps/desktop/src-tauri"
 cargo tauri build
 

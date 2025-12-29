@@ -13,6 +13,7 @@ type HomesSectionProps = {
   deleteConfirm: string;
   deleteReady: boolean;
   dangerStatus: string;
+  tauriAvailable: boolean;
   onRefreshHomes: () => void;
   onSetActiveHome: (id: number) => void;
   onDeleteHome: (id: number) => void;
@@ -35,6 +36,7 @@ export function HomesSection({
   deleteConfirm,
   deleteReady,
   dangerStatus,
+  tauriAvailable,
   onRefreshHomes,
   onSetActiveHome,
   onDeleteHome,
@@ -143,9 +145,19 @@ export function HomesSection({
           onChange={(event) => onNewHomePathChange(event.target.value)}
           placeholder="/Users/you/.codex"
         />
-        <button className="button ghost small" type="button" onClick={onPickHomePath}>
-          Browse
-        </button>
+        <span
+          className="tooltip-wrapper"
+          data-tooltip={tauriAvailable ? undefined : "Available in the desktop app."}
+        >
+          <button
+            className="button ghost small"
+            type="button"
+            onClick={onPickHomePath}
+            disabled={!tauriAvailable}
+          >
+            Browse
+          </button>
+        </span>
       </div>
       <input
         className="input"

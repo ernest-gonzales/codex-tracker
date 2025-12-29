@@ -37,3 +37,23 @@ pub struct SettingsResponse {
     pub app_data_dir: String,
     pub legacy_backup_dir: Option<String>,
 }
+
+#[derive(Serialize)]
+pub struct UpdatedResponse {
+    pub updated: i64,
+}
+
+#[derive(Serialize)]
+pub struct DeletedResponse {
+    pub deleted: i64,
+}
+
+#[derive(Serialize)]
+pub struct ClearedResponse {
+    pub cleared: i64,
+}
+
+#[derive(Serialize)]
+pub struct OkResponse {
+    pub ok: bool,
+}
