@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a CLI server mode (`codex-tracker`) that embeds the UI and opens a browser.
+- Added shared `app_api` and `http_api` crates for the HTTP server entrypoint.
+
 ### Changed
+
+- Split release artifacts into `codex-tracker` (CLI) and `codex-tracker-desktop` (Tauri app).
 
 ### Fixed
 

@@ -73,6 +73,9 @@ jobs:
         working-directory: apps/desktop/src-tauri
         run: cargo tauri build --target ${{ matrix.target }}
 
+      - name: Build CLI
+        run: cargo build -p codex_tracker_cli --release --target ${{ matrix.target }}
+
       - name: Collect artifacts
         id: artifacts
         env:
@@ -83,8 +86,9 @@ jobs:
           BUNDLE_DIR="${TARGET_DIR}/${{ matrix.target }}/release/bundle"
           APP_PATH="$(find "${BUNDLE_DIR}" -type d -name "*.app" -print -quit)"
           DMG_PATH="$(find "${BUNDLE_DIR}" -type f -name "*.dmg" -print -quit)"
+          CLI_PATH="${TARGET_DIR}/${{ matrix.target }}/release/codex-tracker"
 
-          if [[ -z "${APP_PATH}" || -z "${DMG_PATH}" ]]; then
+          if [[ -z "${APP_PATH}" || -z "${DMG_PATH}" || ! -f "${CLI_PATH}" ]]; then
             echo "Failed to locate bundle outputs."
             exit 1
           fi
@@ -92,8 +96,11 @@ jobs:
           ARTIFACTS_DIR="${RUNNER_TEMP}/artifacts-${{ matrix.arch }}"
           mkdir -p "${ARTIFACTS_DIR}"
 
-          RENAMED_DMG="${ARTIFACTS_DIR}/codex-tracker_${VERSION}_${{ matrix.arch }}.dmg"
+          RENAMED_DMG="${ARTIFACTS_DIR}/codex-tracker-desktop_${VERSION}_${{ matrix.arch }}.dmg"
           mv "${DMG_PATH}" "${RENAMED_DMG}"
+
+          CLI_TAR="${ARTIFACTS_DIR}/codex-tracker_${VERSION}_${{ matrix.arch }}.tar.gz"
+          tar -czf "${CLI_TAR}" -C "$(dirname "${CLI_PATH}")" "codex-tracker"
 
           echo "dmg=${RENAMED_DMG}" >> "${GITHUB_OUTPUT}"
           echo "app=${APP_PATH}" >> "${GITHUB_OUTPUT}"
@@ -104,7 +111,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           VERSION="${VERSION#v}"
-          ZIP_PATH="${{ steps.artifacts.outputs.dir }}/codex-tracker_${VERSION}_${{ matrix.arch }}.zip"
+          ZIP_PATH="${{ steps.artifacts.outputs.dir }}/codex-tracker-desktop_${VERSION}_${{ matrix.arch }}.zip"
           ditto -c -k --sequesterRsrc --keepParent "${{ steps.artifacts.outputs.app }}" "${ZIP_PATH}"
 
       - name: Upload artifacts
@@ -151,7 +158,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum *.dmg *.zip > SHA256SUMS.txt
+          sha256sum *.dmg *.zip *.tar.gz > SHA256SUMS.txt
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -160,4 +167,5 @@ jobs:
           files: |
             dist/*.dmg
             dist/*.zip
+            dist/*.tar.gz
             dist/SHA256SUMS.txt

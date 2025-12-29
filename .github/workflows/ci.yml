@@ -48,5 +48,8 @@ jobs:
       - name: Rust clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Build CLI
+        run: cargo build -p codex_tracker_cli
+
       - name: Build desktop (no bundle)
         run: cargo build -p codex_tracker
