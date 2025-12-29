@@ -145,14 +145,19 @@ export function HomesSection({
           onChange={(event) => onNewHomePathChange(event.target.value)}
           placeholder="/Users/you/.codex"
         />
-        <button
-          className="button ghost small"
-          type="button"
-          onClick={onPickHomePath}
-          disabled={!tauriAvailable}
+        <span
+          className="tooltip-wrapper"
+          data-tooltip={tauriAvailable ? undefined : "Available in the desktop app."}
         >
-          Browse
-        </button>
+          <button
+            className="button ghost small"
+            type="button"
+            onClick={onPickHomePath}
+            disabled={!tauriAvailable}
+          >
+            Browse
+          </button>
+        </span>
       </div>
       <input
         className="input"

@@ -40,14 +40,19 @@ export function StorageSection({
               >
                 Copy
               </button>
-              <button
-                className="button ghost small"
-                type="button"
-                onClick={() => onRevealPath(storageInfo?.appDataDir, true)}
-                disabled={!storageInfo?.appDataDir || !revealAvailable}
+              <span
+                className="tooltip-wrapper"
+                data-tooltip={revealAvailable ? undefined : "Available in the desktop app."}
               >
-                Reveal
-              </button>
+                <button
+                  className="button ghost small"
+                  type="button"
+                  onClick={() => onRevealPath(storageInfo?.appDataDir, true)}
+                  disabled={!storageInfo?.appDataDir || !revealAvailable}
+                >
+                  Reveal
+                </button>
+              </span>
             </div>
           </div>
         </div>
