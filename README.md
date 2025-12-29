@@ -103,3 +103,14 @@ brew install --cask codex-tracker
 
 Because releases are **not notarized** (yet), macOS Gatekeeper will likely show a warning on first launch.
 This is expected for unsigned distribution.
+
+If you see “**Codex Tracker.app is damaged and can’t be opened**”:
+
+1. Drag the app into `/Applications` (don’t run it from the mounted DMG).
+2. Remove the quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Codex Tracker.app"
+```
+
+If you install via Homebrew, you can also use `brew install --cask --no-quarantine codex-tracker`.
