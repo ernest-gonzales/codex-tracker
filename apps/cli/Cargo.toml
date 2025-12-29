@@ -1,0 +1,17 @@
+[package]
+name = "codex_tracker_cli"
+version.workspace = true
+edition = "2024"
+
+[[bin]]
+name = "codex-tracker"
+path = "src/main.rs"
+
+[dependencies]
+app_api = { path = "../../crates/app_api" }
+axum = "0.7.9"
+http_api = { path = "../../crates/http_api" }
+tracker_app = { path = "../../crates/app" }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+tokio = { version = "1.36.0", features = ["macros", "net", "rt-multi-thread", "signal"] }

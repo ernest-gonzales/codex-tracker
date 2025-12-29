@@ -1,8 +1,16 @@
 # Codex Tracker
 
-**Codex Tracker** is a **local-only desktop application** for analyzing **Codex CLI usage**
+**Codex Tracker** is a **local-only analytics app** for **Codex CLI usage**
 (tokens and cost). It runs entirely on your machine, stores data in a local SQLite database,
 and does **not** require any account, cloud service, or remote backend.
+
+It ships as two macOS deliverables:
+
+- **codex-tracker** (CLI)  
+  Starts a local web server and opens the UI in your default browser.
+
+- **codex-tracker-desktop** (desktop app)  
+  Tauri desktop shell for the same UI and backend.
 
 The application is built with:
 
@@ -17,8 +25,8 @@ The application is built with:
 - **Local-only by design**  
   Everything runs on your device. No telemetry, no cloud sync, no external services.
 
-- **Desktop-first**  
-  There is no web app deployment. The UI is bundled into the desktop app.
+- **CLI-first on macOS**  
+  The preferred install is the CLI mode to avoid Gatekeeper friction.
 
 - **Developer-focused**  
   Optimized for long-running sessions, dense information, and predictable behavior.
@@ -69,22 +77,70 @@ The application is built with:
 - `crates/app/`  
   Application services: ingestion orchestration, analytics, defaults
 
+- `crates/app_api/`  
+  Shared API surface (requests/responses + handlers) used by both desktop and CLI
+
+- `crates/http_api/`  
+  Local HTTP server + embedded UI assets for CLI mode
+
 ### Desktop application
 
 - `apps/web/`  
   React + TypeScript UI (Vite, Tailwind, Recharts)
 
+- `apps/cli/`  
+  CLI entrypoint that serves the UI over localhost and opens a browser
+
 - `apps/desktop/src-tauri/`  
   Tauri shell and IPC commands bridging UI and Rust backend
 
-The UI is built once and loaded directly by the Tauri shell.
-There is **no runtime web server**.
+The UI is built once:
+- Desktop loads it directly in the Tauri shell
+- CLI embeds it and serves it via a local HTTP server
 
 ---
 
 ## Installation (macOS)
 
-### Option 1: GitHub Releases (recommended)
+### Option 1: Homebrew (CLI, recommended)
+
+```bash
+brew tap ernest-gonzales/homebrew-tap
+brew install codex-tracker
+```
+
+Run it:
+
+```bash
+codex-tracker
+```
+
+Optional flags:
+
+```bash
+codex-tracker --port 4567
+codex-tracker --no-open
+```
+
+Config file (default port is saved here):
+
+```
+~/Library/Application Support/codex-tracker/config.toml
+```
+
+Data directory:
+
+- Reuses the desktop app data directory if present
+- Otherwise defaults to `~/Library/Application Support/codex-tracker`
+
+### Option 2: Homebrew (desktop app)
+
+```bash
+brew tap ernest-gonzales/homebrew-tap
+brew install --cask codex-tracker-desktop
+```
+
+### Option 3: GitHub Releases (desktop app)
 
 Download the latest DMG from GitHub Releases:
 
@@ -92,17 +148,10 @@ https://github.com/ernest-gonzales/codex-tracker/releases
 
 Open the DMG and drag **Codex Tracker** to Applications.
 
-### Option 2: Homebrew (cask)
-
-```bash
-brew tap ernest-gonzales/homebrew-tap
-brew install --cask codex-tracker
-```
-
 ### Gatekeeper note
 
-Because releases are **not notarized** (yet), macOS Gatekeeper will likely show a warning on first launch.
-This is expected for unsigned distribution.
+Because desktop releases are **not notarized** (yet), macOS Gatekeeper will likely
+show a warning on first launch. This is expected for unsigned distribution.
 
 If you see “**Codex Tracker.app is damaged and can’t be opened**”:
 
@@ -113,4 +162,5 @@ If you see “**Codex Tracker.app is damaged and can’t be opened**”:
 xattr -dr com.apple.quarantine "/Applications/Codex Tracker.app"
 ```
 
-If you install via Homebrew, you can also use `brew install --cask --no-quarantine codex-tracker`.
+If you install via Homebrew, you can also use
+`brew install --cask --no-quarantine codex-tracker-desktop`.

@@ -2,9 +2,22 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   checks:
@@ -13,6 +26,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Keep these deps if your Rust desktop crate or build scripts touch Tauri/GTK bits.
+      # If you later confirm they aren't needed for "cargo build -p codex_tracker", you can remove this step.
       - name: Install system deps (Tauri)
         run: |
           sudo apt-get update
@@ -42,11 +57,24 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      # Rust cache (speeds up fmt/clippy/tests/build a lot)
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          cache-on-failure: true
+
       - name: Rust fmt
         run: cargo fmt --check
 
       - name: Rust clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Build CLI
+        run: cargo build -p codex_tracker_cli
 
       - name: Build desktop (no bundle)
         run: cargo build -p codex_tracker

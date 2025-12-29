@@ -9,9 +9,15 @@ type StorageSectionProps = {
   storageInfo: StorageInfo | null;
   onCopyPath: (value?: string) => void;
   onRevealPath: (value?: string, isDir?: boolean) => void;
+  revealAvailable: boolean;
 };
 
-export function StorageSection({ storageInfo, onCopyPath, onRevealPath }: StorageSectionProps) {
+export function StorageSection({
+  storageInfo,
+  onCopyPath,
+  onRevealPath,
+  revealAvailable
+}: StorageSectionProps) {
   return (
     <section id="settings-storage" className="panel settings-section">
       <div className="panel-header">
@@ -34,14 +40,19 @@ export function StorageSection({ storageInfo, onCopyPath, onRevealPath }: Storag
               >
                 Copy
               </button>
-              <button
-                className="button ghost small"
-                type="button"
-                onClick={() => onRevealPath(storageInfo?.appDataDir, true)}
-                disabled={!storageInfo?.appDataDir}
+              <span
+                className="tooltip-wrapper"
+                data-tooltip={revealAvailable ? undefined : "Available in the desktop app."}
               >
-                Reveal
-              </button>
+                <button
+                  className="button ghost small"
+                  type="button"
+                  onClick={() => onRevealPath(storageInfo?.appDataDir, true)}
+                  disabled={!storageInfo?.appDataDir || !revealAvailable}
+                >
+                  Reveal
+                </button>
+              </span>
             </div>
           </div>
         </div>

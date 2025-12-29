@@ -16,6 +16,7 @@ import type { SettingsTabValue } from "../../shared/constants";
 import { STORAGE_KEYS } from "../../shared/constants";
 import { formatNumber } from "../../shared/formatters";
 import { safeStorageGet, safeStorageSet } from "../../shared/storage";
+import { isTauriRuntime } from "../../shared/tauri";
 import { validatePricingRules } from "../../shared/validation";
 import type { ToastMessage } from "../shared/Toast";
 
@@ -50,6 +51,7 @@ export function useSettingsState({ onToast, onDashboardRefresh }: SettingsStateO
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [activeMinutes, setActiveMinutes] = useState(60);
   const [activeMinutesInput, setActiveMinutesInput] = useState("60");
+  const tauriAvailable = isTauriRuntime();
 
   const deleteReady = deleteConfirm.trim().toLowerCase() === "delete";
 
@@ -175,6 +177,9 @@ export function useSettingsState({ onToast, onDashboardRefresh }: SettingsStateO
   }, [settingsTab]);
 
   async function validateHomePath(path: string) {
+    if (!tauriAvailable) {
+      return true;
+    }
     try {
       const { exists } = await import("@tauri-apps/plugin-fs");
       return await exists(path);
@@ -188,6 +193,13 @@ export function useSettingsState({ onToast, onDashboardRefresh }: SettingsStateO
   }
 
   async function handlePickHomePath() {
+    if (!tauriAvailable) {
+      onToast?.({
+        message: "Folder picker is available in the desktop app.",
+        tone: "info"
+      });
+      return;
+    }
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({ directory: true, multiple: false });
@@ -356,6 +368,13 @@ export function useSettingsState({ onToast, onDashboardRefresh }: SettingsStateO
     if (!value) {
       return;
     }
+    if (!tauriAvailable) {
+      onToast?.({
+        message: "Reveal is available in the desktop app.",
+        tone: "info"
+      });
+      return;
+    }
     try {
       if (isDir) {
         const { openPath } = await import("@tauri-apps/plugin-opener");
@@ -437,6 +456,7 @@ export function useSettingsState({ onToast, onDashboardRefresh }: SettingsStateO
     pricingIssueMap,
     pricingRows,
     storageInfo,
+    tauriAvailable,
     activeMinutes,
     activeMinutesInput,
     setActiveMinutesInput,

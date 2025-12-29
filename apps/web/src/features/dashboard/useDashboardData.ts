@@ -4,6 +4,7 @@ import { fetchDashboardData, type DashboardPayload } from "../../data/dashboard"
 import { clearCached, getCached, setCached } from "../../data/cache";
 import { runIngest } from "../../data/codexApi";
 import type { ChartBucketMode } from "../../shared/constants";
+import { isTauriRuntime } from "../../shared/tauri";
 import type { ToastMessage } from "../shared/Toast";
 
 const DASHBOARD_CACHE_PREFIX = "dashboard:";
@@ -119,6 +120,9 @@ export function useDashboardData({
   }, [refresh, refreshToken]);
 
   useEffect(() => {
+    if (!isTauriRuntime()) {
+      return;
+    }
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     (async () => {

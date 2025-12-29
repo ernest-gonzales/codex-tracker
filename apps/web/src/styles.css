@@ -199,6 +199,38 @@ h1.brand-name {
   transform: translateY(0);
 }
 
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-wrapper::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  max-width: 260px;
+  background: var(--chart-tooltip-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+}
+
+.tooltip-wrapper:hover::after,
+.tooltip-wrapper:focus-within::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .range-toolbar {
   background: rgba(17, 26, 56, 0.6);
   border: 1px solid var(--border);
