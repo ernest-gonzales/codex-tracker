@@ -45,7 +45,7 @@ export function DashboardPage({
   const [range, setRange] = useState<RangeValue>("today");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("30s");
+  const [autoRefresh, setAutoRefresh] = useState<AutoRefreshValue>("15s");
   const [chartBucketMode, setChartBucketMode] = useState<ChartBucketMode>("hour");
   const [modelFilter, setModelFilter] = useState("all");
   const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
