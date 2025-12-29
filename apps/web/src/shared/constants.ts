@@ -24,6 +24,7 @@ export const STORAGE_KEYS = {
   range: "codex-tracker.range",
   rangeStart: "codex-tracker.range.start",
   rangeEnd: "codex-tracker.range.end",
+  autoRefresh: "codex-tracker.auto-refresh",
   settingsTab: "codex-tracker.settings.tab"
 };
 

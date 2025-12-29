@@ -183,6 +183,13 @@ export function DashboardPage({
     if (storedEnd) {
       setCustomEnd(formatDateInputValue(storedEnd));
     }
+    const storedAutoRefresh = safeStorageGet(STORAGE_KEYS.autoRefresh);
+    if (
+      storedAutoRefresh &&
+      AUTO_REFRESH_OPTIONS.some((option) => option.value === storedAutoRefresh)
+    ) {
+      setAutoRefresh(storedAutoRefresh as AutoRefreshValue);
+    }
   }, []);
 
   useEffect(() => {
@@ -196,6 +203,10 @@ export function DashboardPage({
   useEffect(() => {
     safeStorageSet(STORAGE_KEYS.rangeEnd, customEnd);
   }, [customEnd]);
+
+  useEffect(() => {
+    safeStorageSet(STORAGE_KEYS.autoRefresh, autoRefresh);
+  }, [autoRefresh]);
 
   useEffect(() => {
     if (!autoRefreshInterval) {
