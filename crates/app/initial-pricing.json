@@ -4,7 +4,7 @@
     "input_per_1m": 1.75,
     "cached_input_per_1m": 0.175,
     "output_per_1m": 14.0,
-    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_from": "2023-01-01T00:00:00.000Z",
     "effective_to": null
   },
   {
@@ -12,7 +12,7 @@
     "input_per_1m": 1.75,
     "cached_input_per_1m": 0.175,
     "output_per_1m": 14.0,
-    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_from": "2023-01-01T00:00:00.000Z",
     "effective_to": null
   },
   {
@@ -20,7 +20,7 @@
     "input_per_1m": 1.25,
     "cached_input_per_1m": 0.125,
     "output_per_1m": 10.0,
-    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_from": "2023-01-01T00:00:00.000Z",
     "effective_to": null
   },
   {
@@ -28,7 +28,7 @@
     "input_per_1m": 0.25,
     "cached_input_per_1m": 0.025,
     "output_per_1m": 2.0,
-    "effective_from": "2025-11-30T23:00:00.000Z",
+    "effective_from": "2023-01-01T00:00:00.000Z",
     "effective_to": null
   }
 ]
