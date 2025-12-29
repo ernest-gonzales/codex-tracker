@@ -1,8 +1,6 @@
-type CommandArgs = Record<string, unknown> | undefined;
+import { isTauriRuntime } from "../shared/tauri";
 
-function isTauriRuntime(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-}
+type CommandArgs = Record<string, unknown> | undefined;
 
 function getCsrfToken(): string | undefined {
   const token = (window as Window & { __CODEX_TRACKER_CSRF__?: string })
