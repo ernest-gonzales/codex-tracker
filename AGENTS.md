@@ -77,6 +77,7 @@ A task is considered complete when:
 ## Rust-specific guidelines
 
 - Run `cargo fmt` and keep formatting clean
+- After any Rust changes, ensure `cargo fmt --check` passes (run `cargo fmt` to fix)
 - Treat warnings as errors:
 
   ```bash
