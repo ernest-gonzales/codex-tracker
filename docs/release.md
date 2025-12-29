@@ -38,6 +38,15 @@ bash scripts/release_local.sh X.Y.Z
 Because releases are **not notarized**, macOS Gatekeeper will likely show a warning on first launch.
 This is expected for unsigned distribution.
 
+If you see “**Codex Tracker.app is damaged and can’t be opened**”, it’s usually Gatekeeper quarantine on an unsigned app:
+
+1. Drag the app into `/Applications` (don’t run it from the mounted DMG).
+2. Remove the quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Codex Tracker.app"
+```
+
 ## Homebrew cask updates
 
 The cask lives in the Homebrew tap repo at `ernest-gonzales/homebrew-tap` under `Casks/codex-tracker.rb`. For each release:
