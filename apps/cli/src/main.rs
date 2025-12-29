@@ -80,7 +80,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Codex Tracker is running at {url}");
     println!("Press Ctrl+C to stop.");
 
-    if !args.no_open && let Err(err) = open_url(&url) {
+    if !args.no_open
+        && let Err(err) = open_url(&url)
+    {
         eprintln!("failed to open browser: {}", err);
     }
 
