@@ -9,9 +9,15 @@ type StorageSectionProps = {
   storageInfo: StorageInfo | null;
   onCopyPath: (value?: string) => void;
   onRevealPath: (value?: string, isDir?: boolean) => void;
+  revealAvailable: boolean;
 };
 
-export function StorageSection({ storageInfo, onCopyPath, onRevealPath }: StorageSectionProps) {
+export function StorageSection({
+  storageInfo,
+  onCopyPath,
+  onRevealPath,
+  revealAvailable
+}: StorageSectionProps) {
   return (
     <section id="settings-storage" className="panel settings-section">
       <div className="panel-header">
@@ -38,7 +44,7 @@ export function StorageSection({ storageInfo, onCopyPath, onRevealPath }: Storag
                 className="button ghost small"
                 type="button"
                 onClick={() => onRevealPath(storageInfo?.appDataDir, true)}
-                disabled={!storageInfo?.appDataDir}
+                disabled={!storageInfo?.appDataDir || !revealAvailable}
               >
                 Reveal
               </button>

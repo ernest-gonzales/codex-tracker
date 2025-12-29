@@ -456,6 +456,7 @@ export function useSettingsState({ onToast, onDashboardRefresh }: SettingsStateO
     pricingIssueMap,
     pricingRows,
     storageInfo,
+    tauriAvailable,
     activeMinutes,
     activeMinutesInput,
     setActiveMinutesInput,

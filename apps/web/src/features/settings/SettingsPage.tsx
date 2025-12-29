@@ -35,6 +35,7 @@ export function SettingsPage({ state, isOpen, onClose }: SettingsPageProps) {
     pricingIssueMap,
     pricingRows,
     storageInfo,
+    tauriAvailable,
     activeMinutesInput,
     setActiveMinutesInput,
     setNewHomeLabel,
@@ -142,6 +143,7 @@ export function SettingsPage({ state, isOpen, onClose }: SettingsPageProps) {
             deleteConfirm={deleteConfirm}
             deleteReady={deleteReady}
             dangerStatus={dangerStatus}
+            tauriAvailable={tauriAvailable}
             onRefreshHomes={refreshHomes}
             onSetActiveHome={handleSetActiveHome}
             onDeleteHome={handleDeleteHome}
@@ -162,6 +164,7 @@ export function SettingsPage({ state, isOpen, onClose }: SettingsPageProps) {
             storageInfo={storageInfo}
             onCopyPath={handleCopyPath}
             onRevealPath={handleRevealPath}
+            revealAvailable={tauriAvailable}
           />
           <PricingSection
             pricingRows={pricingRows}
