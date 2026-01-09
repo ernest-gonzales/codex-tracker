@@ -3,7 +3,7 @@ use std::process::Command;
 use axum::{
     body::Body,
     extract::{Json, State},
-    http::{Method, Request, StatusCode},
+    http::{Method, Request, StatusCode, header::HeaderValue},
     response::{IntoResponse, Response},
 };
 
@@ -280,7 +280,7 @@ fn render_index(csrf_token: &str) -> Result<Response, HttpError> {
     let mut response = Response::new(Body::from(injected));
     response
         .headers_mut()
-        .insert("content-type", index.mime.parse().unwrap());
+        .insert("content-type", parse_content_type(index.mime, "text/plain"));
     Ok(response)
 }
 
@@ -298,10 +298,21 @@ fn inject_csrf(html: &str, csrf_token: &str) -> String {
 
 fn asset_response(asset: &assets::EmbeddedAsset) -> Response {
     let mut response = Response::new(Body::from(asset.bytes));
+    response.headers_mut().insert(
+        "content-type",
+        parse_content_type(asset.mime, "application/octet-stream"),
+    );
     response
-        .headers_mut()
-        .insert("content-type", asset.mime.parse().unwrap());
-    response
+}
+
+fn parse_content_type(value: &str, fallback: &'static str) -> HeaderValue {
+    match value.parse() {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            eprintln!("Invalid content-type '{value}': {err}");
+            HeaderValue::from_static(fallback)
+        }
+    }
 }
 
 fn open_path(path: &std::path::Path) -> Result<(), HttpError> {
@@ -317,5 +328,19 @@ fn open_path(path: &std::path::Path) -> Result<(), HttpError> {
             "failed to open path",
             None,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::header::HeaderValue;
+
+    use super::parse_content_type;
+
+    #[test]
+    fn parse_content_type_falls_back_on_invalid() {
+        let value = parse_content_type("invalid\nmime", "application/octet-stream");
+
+        assert_eq!(value, HeaderValue::from_static("application/octet-stream"));
     }
 }
