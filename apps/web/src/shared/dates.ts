@@ -9,6 +9,16 @@ export function formatDateOnlyLocal(value?: string | null) {
 }
 
 export function parseDateOnlyLocal(value: string) {
+  const parts = value.split("-");
+  if (parts.length === 3) {
+    const [year, month, day] = parts.map((part) => Number(part));
+    if ([year, month, day].every((part) => Number.isFinite(part))) {
+      const local = new Date(year, month - 1, day);
+      if (!Number.isNaN(local.getTime())) {
+        return local.toISOString();
+      }
+    }
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
