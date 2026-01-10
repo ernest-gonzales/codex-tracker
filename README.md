@@ -164,4 +164,3 @@ xattr -dr com.apple.quarantine "/Applications/Codex Tracker.app"
 
 If you install via Homebrew, you can also use
 `brew install --cask --no-quarantine codex-tracker-desktop`.
-
